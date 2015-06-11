@@ -125,7 +125,7 @@ func (this *PusherWorker) delivery(msg *Msg, retry_times int) (success bool, err
 	client.Timeout = this.callback.timeout
 	req, _ := http.NewRequest("POST", this.callback.url, body)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
-	req.Header.Set("User-Agent", "PusherConsumer(go)/v"+VERSION)
+	req.Header.Set("User-Agent", "Taiji pusher consumer(go)/v"+VERSION)
 	req.Header.Set("X-Retry-Times", fmt.Sprintf("%d", retry_times))
 	resp, err := client.Do(req)
 	defer resp.Body.Close()

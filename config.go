@@ -16,12 +16,13 @@ type CallbackItemConfig struct {
 }
 
 type ServiceConfig struct {
+	LogFile   string               `json:"log_file"`
 	Callbacks []CallbackItemConfig `json:"callbacks"`
 }
 
-func loadConfig() (*ServiceConfig, error) {
+func loadConfig(configFile string) (*ServiceConfig, error) {
 	var c *ServiceConfig
-	path := "config.json"
+	path := configFile
 	fi, err := os.Open(path)
 	defer fi.Close()
 	if nil != err {

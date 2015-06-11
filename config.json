@@ -1,4 +1,5 @@
 {
+	"log_file":"logs/taiji.log",
     "callbacks": [
         {
             "url": "http://localhost",

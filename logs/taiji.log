@@ -1,0 +1,76 @@
+[Sarama] 2015/06/11 23:57:36 Initializing new client
+[Sarama] 2015/06/11 23:57:36 client/metadata fetching metadata for all topics from broker 192.168.31.138:9092
+[Sarama] 2015/06/11 23:57:36 Connected to broker at 192.168.31.138:9092 (unregistered)
+[Sarama] 2015/06/11 23:57:36 client/brokers registered new broker #0 at 192.168.31.138:9092
+[Sarama] 2015/06/11 23:57:36 Successfully initialized new client
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] Consumer instance registered (hanguofeng.local:99e421db-279d-4609-bb4a-d5fdd00c2354).
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] Currently registered consumers: 1
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1 :: Started topic consumer
+[Sarama] 2015/06/11 23:57:36 Initializing new client
+[Sarama] 2015/06/11 23:57:36 client/metadata fetching metadata for all topics from broker 192.168.31.138:9092
+[Sarama] 2015/06/11 23:57:36 Connected to broker at 192.168.31.138:9092 (unregistered)
+[Sarama] 2015/06/11 23:57:36 client/brokers registered new broker #0 at 192.168.31.138:9092
+[Sarama] 2015/06/11 23:57:36 Successfully initialized new client
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1 :: Claiming 10 of 10 partitions
+[Sarama] 2015/06/11 23:57:36 [0f3393fad3e6dc7700642f16ecc3ae3d/7b8511b765b3] Consumer instance registered (hanguofeng.local:08ddb498-9bd7-41b6-9b75-7b8511b765b3).
+[Sarama] 2015/06/11 23:57:36 [0f3393fad3e6dc7700642f16ecc3ae3d/7b8511b765b3] Currently registered consumers: 1
+[Sarama] 2015/06/11 23:57:36 [0f3393fad3e6dc7700642f16ecc3ae3d/7b8511b765b3] m2 :: Started topic consumer
+[Sarama] 2015/06/11 23:57:36 [0f3393fad3e6dc7700642f16ecc3ae3d/7b8511b765b3] m2 :: Claiming 1 of 1 partitions
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/0 :: Partition consumer starting at offset 2.
+[Sarama] 2015/06/11 23:57:36 Connected to broker at 192.168.31.138:9092 (registered as #0)
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/1 :: Partition consumer starting at offset 94.
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/2 :: Partition consumer starting at offset 14.
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/3 :: Partition consumer starting at offset 25.
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/4 :: Partition consumer starting at offset 43.
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/5 :: Partition consumer listening for new messages only.
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/6 :: Partition consumer listening for new messages only.
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/7 :: Partition consumer starting at offset 64.
+[Sarama] 2015/06/11 23:57:36 consumer/broker/0 added subscription to m1/0
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/8 :: Partition consumer starting at offset 16.
+[Sarama] 2015/06/11 23:57:36 [0f3393fad3e6dc7700642f16ecc3ae3d/7b8511b765b3] m2/0 :: Partition consumer starting at offset 11.
+[Sarama] 2015/06/11 23:57:36 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/9 :: Partition consumer starting at offset 4.
+[Sarama] 2015/06/11 23:57:36 Connected to broker at 192.168.31.138:9092 (registered as #0)
+[Sarama] 2015/06/11 23:57:36 consumer/broker/0 added subscription to m2/0
+[Sarama] 2015/06/11 23:57:37 consumer/broker/0 added subscription to m1/1
+[Sarama] 2015/06/11 23:57:37 consumer/broker/0 added subscription to m1/2
+[Sarama] 2015/06/11 23:57:37 consumer/broker/0 added subscription to m1/3
+[Sarama] 2015/06/11 23:57:37 consumer/broker/0 added subscription to m1/4
+[Sarama] 2015/06/11 23:57:37 consumer/broker/0 added subscription to m1/6
+[Sarama] 2015/06/11 23:57:37 consumer/broker/0 added subscription to m1/5
+[Sarama] 2015/06/11 23:57:37 consumer/broker/0 added subscription to m1/7
+[Sarama] 2015/06/11 23:57:37 consumer/broker/0 added subscription to m1/8
+[Sarama] 2015/06/11 23:57:37 consumer/broker/0 added subscription to m1/9
+2015/06/11 23:57:39 catch exit signal
+[Sarama] 2015/06/11 23:57:39 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/0 :: Stopping partition consumer at offset -1
+[Sarama] 2015/06/11 23:57:39 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/1 :: Stopping partition consumer at offset -1
+[Sarama] 2015/06/11 23:57:39 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/2 :: Stopping partition consumer at offset -1
+[Sarama] 2015/06/11 23:57:39 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/3 :: Stopping partition consumer at offset -1
+[Sarama] 2015/06/11 23:57:39 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/4 :: Stopping partition consumer at offset -1
+[Sarama] 2015/06/11 23:57:39 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/6 :: Stopping partition consumer at offset -1
+[Sarama] 2015/06/11 23:57:39 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/5 :: Stopping partition consumer at offset -1
+[Sarama] 2015/06/11 23:57:39 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/7 :: Stopping partition consumer at offset -1
+[Sarama] 2015/06/11 23:57:39 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/8 :: Stopping partition consumer at offset -1
+[Sarama] 2015/06/11 23:57:39 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1/9 :: Stopping partition consumer at offset -1
+[Sarama] 2015/06/11 23:57:39 consumer/broker/0 closed dead subscription to m1/9
+[Sarama] 2015/06/11 23:57:39 consumer/broker/0 closed dead subscription to m1/0
+[Sarama] 2015/06/11 23:57:39 consumer/broker/0 closed dead subscription to m1/1
+[Sarama] 2015/06/11 23:57:39 consumer/broker/0 closed dead subscription to m1/6
+[Sarama] 2015/06/11 23:57:39 consumer/broker/0 closed dead subscription to m1/5
+[Sarama] 2015/06/11 23:57:39 consumer/broker/0 closed dead subscription to m1/8
+[Sarama] 2015/06/11 23:57:39 consumer/broker/0 closed dead subscription to m1/2
+[Sarama] 2015/06/11 23:57:39 consumer/broker/0 closed dead subscription to m1/3
+[Sarama] 2015/06/11 23:57:39 consumer/broker/0 closed dead subscription to m1/4
+[Sarama] 2015/06/11 23:57:39 consumer/broker/0 closed dead subscription to m1/7
+[Sarama] 2015/06/11 23:57:39 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] m1 :: Stopped topic consumer
+[Sarama] 2015/06/11 23:57:39 [86a9106ae65537651a8e456835b316ab/d5fdd00c2354] Deregistered consumer instance hanguofeng.local:99e421db-279d-4609-bb4a-d5fdd00c2354.
+[Sarama] 2015/06/11 23:57:39 Closing Client
+[Sarama] 2015/06/11 23:57:39 Closed connection to broker 192.168.31.138:9092
+[Sarama] 2015/06/11 23:57:39 Closed connection to broker 192.168.31.138:9092
+[Sarama] 2015/06/11 23:57:39 [0f3393fad3e6dc7700642f16ecc3ae3d/7b8511b765b3] m2/0 :: Stopping partition consumer at offset -1
+[Sarama] 2015/06/11 23:57:39 consumer/broker/0 closed dead subscription to m2/0
+[Sarama] 2015/06/11 23:57:39 [0f3393fad3e6dc7700642f16ecc3ae3d/7b8511b765b3] m2 :: Stopped topic consumer
+[Sarama] 2015/06/11 23:57:39 [0f3393fad3e6dc7700642f16ecc3ae3d/7b8511b765b3] Deregistered consumer instance hanguofeng.local:08ddb498-9bd7-41b6-9b75-7b8511b765b3.
+[Sarama] 2015/06/11 23:57:39 Closing Client
+[Sarama] 2015/06/11 23:57:39 Closed connection to broker 192.168.31.138:9092
+[Sarama] 2015/06/11 23:57:39 Closed connection to broker 192.168.31.138:9092
+2015/06/11 23:57:39 exit done
