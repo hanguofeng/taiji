@@ -1,0 +1,28 @@
+{
+    "callbacks": [
+        {
+            "url": "http://localhost",
+            "retry_times": 4,
+            "timeout": "1s",
+            "topics": [
+                "m1"
+            ],
+            "zookeepers": [
+                "127.0.0.1:2181"
+            ],
+            "zk_path": "/kafka/cart"
+        },
+        {
+            "url": "http://localhost/api/b",
+            "retry_times": 4,
+            "timeout": "1s",
+            "topics": [
+                "m2"
+            ],
+            "zookeepers": [
+                "127.0.0.1:2181"
+            ],
+            "zk_path": "/kafka/cart"
+        }
+    ]
+}
