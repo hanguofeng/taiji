@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -17,17 +18,31 @@ const (
 )
 
 var (
-	configFile = flag.String("c", "config.json", "the config file")
+	configFile     = flag.String("c", "config.json", "the config file")
+	showVersion    = flag.Bool("v", false, "show version")
+	testConfigMode = flag.Bool("t", false, "test config")
 )
 
 func main() {
 
 	flag.Parse()
 
+	if true == *showVersion {
+		fmt.Printf("taiji v%s \n", VERSION)
+		flag.Usage()
+		os.Exit(0)
+	}
+
 	config, err := loadConfig(*configFile)
 
 	if nil != err {
 		log.Fatalf("load config err:%s", err.Error())
+	}
+
+	if true == *testConfigMode {
+		fmt.Println("config test ok")
+		fmt.Printf("config:%v\n", config)
+		os.Exit(0)
 	}
 
 	if len(config.LogFile) > 0 {
