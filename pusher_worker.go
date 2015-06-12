@@ -128,8 +128,14 @@ func (this *PusherWorker) delivery(msg *Msg, retry_times int) (success bool, err
 	req.Header.Set("User-Agent", "Taiji pusher consumer(go)/v"+VERSION)
 	req.Header.Set("X-Retry-Times", fmt.Sprintf("%d", retry_times))
 	resp, err := client.Do(req)
-	defer resp.Body.Close()
-	suc := (resp.StatusCode == 200)
+	suc := true
+	if nil == err {
+		defer resp.Body.Close()
+		suc = (resp.StatusCode == 200)
+	} else {
+		log.Printf("delivery failed,error:%s",err.Error())
+		suc = false
+	}
 	return suc, err
 }
 
