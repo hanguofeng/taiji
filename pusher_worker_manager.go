@@ -1,6 +1,8 @@
 package main
 
-import ()
+import (
+	"log"
+)
 
 type PusherWorkerManager struct {
 	workers []*PusherWorker
@@ -29,10 +31,25 @@ func (this *PusherWorkerManager) InitAll() error {
 func (this *PusherWorkerManager) WorkAll() error {
 
 	for _, worker := range this.workers {
-		if nil != worker.consumer {
+		if nil != worker.Consumer {
 			go worker.work()
 		}
 	}
+
+	return nil
+}
+
+func (this *PusherWorkerManager) CheckAndRestart() error {
+
+	log.Printf("checking workers begin...")
+	for _, worker := range this.workers {
+		if worker.closed() {
+			worker.init()
+			worker.work()
+			log.Printf("found worker closed,already restarted")
+		}
+	}
+	log.Printf("checking workers done")
 
 	return nil
 }

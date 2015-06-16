@@ -37,11 +37,11 @@ func main() {
 
 	if nil != err {
 		log.Fatalf("load config err:%s", err.Error())
-	}
+	}	
 
 	if true == *testConfigMode {
 		fmt.Println("config test ok")
-		fmt.Printf("config:%v\n", config)
+		fmt.Printf("config:%#v\n", config)
 		os.Exit(0)
 	}
 
@@ -62,13 +62,11 @@ func main() {
 	var callbackConfig CallbackItemConfig
 	for _, callbackConfig = range config.Callbacks {
 		callback := new(PusherWorkerCallback)
-		callback.retry_times = callbackConfig.RetryTimes
-		callback.url = callbackConfig.Url
-		callback.timeout, err = time.ParseDuration(callbackConfig.Timeout)
-		if nil != err {
-			callback.timeout = time.Second
-			log.Printf("callback config timeout error,using default.config value:%s", callbackConfig.Timeout)
-		}
+		callback.RetryTimes = callbackConfig.RetryTimes
+		callback.Url = callbackConfig.Url
+		callback.Timeout = callbackConfig.Timeout
+		callback.BypassFailed = callbackConfig.BypassFailed
+		callback.FailedSleep = callbackConfig.FailedSleep
 		kafkaTopics := callbackConfig.Topics
 		zookeeper := callbackConfig.Zookeepers
 		zkPath := callbackConfig.ZkPath
@@ -84,6 +82,13 @@ func main() {
 	}
 
 	manager.WorkAll()
+
+	go func() {
+		for {
+			manager.CheckAndRestart()
+			time.Sleep(time.Second * 20)
+		}
+	}()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGKILL)

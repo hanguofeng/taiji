@@ -16,24 +16,26 @@ import (
 )
 
 type PusherWorkerCallback struct {
-	url         string
-	retry_times int
-	timeout     time.Duration
+	Url          string
+	RetryTimes   int
+	Timeout      time.Duration
+	BypassFailed bool
+	FailedSleep  time.Duration
 }
 type PusherWorker struct {
-	callback  *PusherWorkerCallback
-	topics    []string
-	zookeeper []string
-	zkPath    string
-	consumer  *consumergroup.ConsumerGroup
+	Callback  *PusherWorkerCallback
+	Topics    []string
+	Zookeeper []string
+	ZkPath    string
+	Consumer  *consumergroup.ConsumerGroup
 }
 
 func CreatePusherWorker(callback *PusherWorkerCallback, topics []string, zookeeper []string, zkPath string) *PusherWorker {
 	worker := new(PusherWorker)
-	worker.callback = callback
-	worker.topics = topics
-	worker.zookeeper = zookeeper
-	worker.zkPath = zkPath
+	worker.Callback = callback
+	worker.Topics = topics
+	worker.Zookeeper = zookeeper
+	worker.ZkPath = zkPath
 	return worker
 }
 
@@ -42,34 +44,34 @@ func (this *PusherWorker) init() error {
 	config := consumergroup.NewConfig()
 	config.Offsets.ProcessingTimeout = 10 * time.Second
 	config.Offsets.Initial = sarama.OffsetNewest
-	if len(this.zkPath) > 0 {
-		config.Zookeeper.Chroot = this.zkPath
+	if len(this.ZkPath) > 0 {
+		config.Zookeeper.Chroot = this.ZkPath
 	}
 
 	consumerGroup := this.getGroupName()
-	topics := this.topics
-	zookeeper := this.zookeeper
+	topics := this.Topics
+	zookeeper := this.Zookeeper
 
 	consumer, consumerErr := consumergroup.JoinConsumerGroup(consumerGroup, topics, zookeeper, config)
 	if consumerErr != nil {
 		return consumerErr
 	}
 
-	this.consumer = consumer
+	this.Consumer = consumer
 
 	return nil
 }
 
 func (this *PusherWorker) getGroupName() string {
 	m := md5.New()
-	m.Write([]byte(this.callback.url))
+	m.Write([]byte(this.Callback.Url))
 	s := hex.EncodeToString(m.Sum(nil))
 	return s
 }
 
 func (this *PusherWorker) work() {
 
-	consumer := this.consumer
+	consumer := this.Consumer
 
 	go func() {
 		for err := range consumer.Errors() {
@@ -91,27 +93,37 @@ func (this *PusherWorker) work() {
 		}
 
 		msg := CreateMsg(message)
-		log.Printf("received message,[partition:%d][offset:%d][value:%s]", msg.Partition, msg.Offset, msg.Value)
+		log.Printf("received message,[topic:%s][partition:%d][offset:%d]", msg.Topic, msg.Partition, msg.Offset)
 
 		deliverySuccessed := false
 		retry_times := 0
-		for !deliverySuccessed && retry_times < this.callback.retry_times {
-			deliverySuccessed, _ = this.delivery(msg, retry_times)
-			if !deliverySuccessed {
-				retry_times++
+		for {
+			for !deliverySuccessed && retry_times < this.Callback.RetryTimes {
+				deliverySuccessed, _ = this.delivery(msg, retry_times)
+				if !deliverySuccessed {
+					retry_times++
+				}
+			}
+
+			if this.Callback.BypassFailed {
+				log.Printf("tried to delivery message [topic:%s][partition:%d][offset:%d] for %d times and all failed. BypassFailed is :%t ,will not retry", msg.Topic, msg.Partition, msg.Offset, retry_times, this.Callback.BypassFailed)
+				break
+			} else {
+				log.Printf("tried to delivery message [topic:%s][partition:%d][offset:%d] for %d times and all failed. BypassFailed is :%t ,sleep %s to retry", msg.Topic, msg.Partition, msg.Offset, retry_times, this.Callback.BypassFailed, this.Callback.FailedSleep)
+				time.Sleep(this.Callback.FailedSleep)
 			}
 		}
 
 		offsets[message.Topic][message.Partition] = message.Offset
 		consumer.CommitUpto(message)
-		log.Printf("commited message,[partition:%d][offset:%d][value:%s]", msg.Partition, msg.Offset, msg.Value)
+		log.Printf("commited message,[topic:%s][partition:%d][offset:%d]", msg.Topic, msg.Partition, msg.Offset)
 
 	}
 
 }
 
 func (this *PusherWorker) delivery(msg *Msg, retry_times int) (success bool, err error) {
-	log.Printf("delivery message,[retry_times:%d][partition:%d][offset:%d][value:%s]", retry_times, msg.Partition, msg.Offset, msg.Value)
+	log.Printf("delivery message,[retry_times:%d][topic:%s][partition:%d][offset:%d]", retry_times, msg.Topic, msg.Partition, msg.Offset)
 	v := url.Values{}
 
 	v.Set("_topic", msg.Topic)
@@ -122,8 +134,8 @@ func (this *PusherWorker) delivery(msg *Msg, retry_times int) (success bool, err
 
 	body := ioutil.NopCloser(strings.NewReader(v.Encode()))
 	client := &http.Client{}
-	client.Timeout = this.callback.timeout
-	req, _ := http.NewRequest("POST", this.callback.url, body)
+	client.Timeout = this.Callback.Timeout
+	req, _ := http.NewRequest("POST", this.Callback.Url, body)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
 	req.Header.Set("User-Agent", "Taiji pusher consumer(go)/v"+VERSION)
 	req.Header.Set("X-Retry-Times", fmt.Sprintf("%d", retry_times))
@@ -133,14 +145,18 @@ func (this *PusherWorker) delivery(msg *Msg, retry_times int) (success bool, err
 		defer resp.Body.Close()
 		suc = (resp.StatusCode == 200)
 	} else {
-		log.Printf("delivery failed,error:%s",err.Error())
+		log.Printf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][error:%s]", retry_times, msg.Topic, msg.Partition, msg.Offset, err.Error())
 		suc = false
 	}
 	return suc, err
 }
 
+func (this *PusherWorker) closed() bool {
+	return this.Consumer.Closed()
+}
+
 func (this *PusherWorker) close() {
-	if err := this.consumer.Close(); err != nil {
+	if err := this.Consumer.Close(); err != nil {
 		sarama.Logger.Println("Error closing the consumer", err)
 	}
 }

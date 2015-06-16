@@ -4,9 +4,11 @@
         {
             "url": "http://localhost",
             "retry_times": 4,
-            "timeout": "1s",
+			"bypass_failed":true,
+			"failed_sleep":"12s",
+            "timeout": "3s",
             "topics": [
-                "m1"
+                "t1"
             ],
             "zookeepers": [
                 "127.0.0.1:2181"
@@ -16,6 +18,8 @@
         {
             "url": "http://localhost/api/b",
             "retry_times": 4,
+			"bypass_failed":false,
+			"failed_sleep":"2s",
             "timeout": "1s",
             "topics": [
                 "m2"
