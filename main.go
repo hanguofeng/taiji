@@ -37,7 +37,7 @@ func main() {
 
 	if nil != err {
 		log.Fatalf("load config err:%s", err.Error())
-	}	
+	}
 
 	if true == *testConfigMode {
 		fmt.Println("config test ok")

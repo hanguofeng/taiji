@@ -48,8 +48,8 @@ func loadConfig(configFile string) (*ServiceConfig, error) {
 		return nil, err
 	}
 
-	for i,_ := range c.Callbacks {
-		callback:=&c.Callbacks[i]
+	for i, _ := range c.Callbacks {
+		callback := &c.Callbacks[i]
 		callback.Timeout, err = time.ParseDuration(callback.TimeoutStr)
 		if nil != err {
 			log.Printf("callback config timeout error(%s),using default.config value:%s", err.Error(), callback.TimeoutStr)
@@ -66,16 +66,16 @@ func loadConfig(configFile string) (*ServiceConfig, error) {
 			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_DEFAULT_FAILED_SLEEP/time.Millisecond)
 
 		}
-		
+
 		if callback.FailedSleep < CFG_MIN_FAILED_SLEEP {
-			log.Printf("callback config failed_sleep too small,using min.config value:%s,%s", callback.FailedSleep,callback.FailedSleepStr)
-			
+			log.Printf("callback config failed_sleep too small,using min.config value:%s,%s", callback.FailedSleep, callback.FailedSleepStr)
+
 			callback.FailedSleep = CFG_MIN_FAILED_SLEEP
 			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_MIN_FAILED_SLEEP/time.Millisecond)
 
 		}
 
 	}
-	
+
 	return c, nil
 }

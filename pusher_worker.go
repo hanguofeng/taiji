@@ -102,7 +102,13 @@ func (this *PusherWorker) work() {
 				deliverySuccessed, _ = this.delivery(msg, retry_times)
 				if !deliverySuccessed {
 					retry_times++
+				} else {
+					break
 				}
+			}
+
+			if deliverySuccessed {
+				break
 			}
 
 			if this.Callback.BypassFailed {
