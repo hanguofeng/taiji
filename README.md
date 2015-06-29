@@ -10,12 +10,29 @@ Taiji (Tai chi,太极) is an internal Chinese martial art practiced for both its
 
 Taiji has some actions such as pull and push,this is similar to this consumer.
 
+## Install
+
+```
+go get github.com/hanguofeng/taiji
+```
+
+# Run
+
+```
+taiji -c="config.json"
+```
+
+```
+taiji -v	#show version
+taiji -t	#test config
+```
+
 ## Config
 
 ```
 {
-	  "log_file":"logs/taiji.log",  //the log file,if no this option,will output to stdout
-    "callbacks": [                //support multi callback url
+	"log_file":"logs/taiji.log",  	//the log file,if no this option,will output to stdout
+    "callbacks": [                	//support multi callback url
         {
             "url": "http://localhost",  //callback url
             "retry_times": 4,           //will retry if the callback request response non 200 code
