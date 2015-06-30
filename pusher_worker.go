@@ -112,11 +112,12 @@ func (this *PusherWorker) work() {
 			}
 
 			if this.Callback.BypassFailed {
-				log.Printf("tried to delivery message [topic:%s][partition:%d][offset:%d] for %d times and all failed. BypassFailed is :%t ,will not retry", msg.Topic, msg.Partition, msg.Offset, retry_times, this.Callback.BypassFailed)
+				log.Printf("tried to delivery message [url:%s][topic:%s][partition:%d][offset:%d] for %d times and all failed. BypassFailed is :%t ,will not retry",this.Callback.Url, msg.Topic, msg.Partition, msg.Offset, retry_times, this.Callback.BypassFailed)
 				break
 			} else {
-				log.Printf("tried to delivery message [topic:%s][partition:%d][offset:%d] for %d times and all failed. BypassFailed is :%t ,sleep %s to retry", msg.Topic, msg.Partition, msg.Offset, retry_times, this.Callback.BypassFailed, this.Callback.FailedSleep)
+				log.Printf("tried to delivery message [url:%s][topic:%s][partition:%d][offset:%d] for %d times and all failed. BypassFailed is :%t ,sleep %s to retry",this.Callback.Url, msg.Topic, msg.Partition, msg.Offset, retry_times, this.Callback.BypassFailed, this.Callback.FailedSleep)
 				time.Sleep(this.Callback.FailedSleep)
+				retry_times=0;
 			}
 		}
 
@@ -129,7 +130,7 @@ func (this *PusherWorker) work() {
 }
 
 func (this *PusherWorker) delivery(msg *Msg, retry_times int) (success bool, err error) {
-	log.Printf("delivery message,[retry_times:%d][topic:%s][partition:%d][offset:%d]", retry_times, msg.Topic, msg.Partition, msg.Offset)
+	log.Printf("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d]", this.Callback.Url,retry_times, msg.Topic, msg.Partition, msg.Offset)
 	v := url.Values{}
 
 	v.Set("_topic", msg.Topic)
