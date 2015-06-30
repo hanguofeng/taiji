@@ -48,6 +48,7 @@ func main() {
 	if len(config.LogFile) > 0 {
 		os.MkdirAll(filepath.Dir(config.LogFile), 0777)
 		f, err := os.OpenFile(config.LogFile, os.O_RDWR|os.O_CREATE, 0666)
+		defer f.Close()
 		if nil != err {
 			log.Fatalf("write log failed")
 		}
