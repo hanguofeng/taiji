@@ -11,36 +11,37 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crask/kafka/consumergroup"
+	"github.com/wvanbergen/kafka/consumergroup"
 	"gopkg.in/Shopify/sarama.v1"
 )
 
-type PusherWorkerCallback struct {
-	Url          string
-	RetryTimes   int
-	Timeout      time.Duration
-	BypassFailed bool
-	FailedSleep  time.Duration
-}
-type PusherWorker struct {
-	Callback  *PusherWorkerCallback
+type Worker struct {
+	Callback  *WorkerCallback
 	Topics    []string
 	Zookeeper []string
 	ZkPath    string
 	Consumer  *consumergroup.ConsumerGroup
 }
 
-func CreatePusherWorker(callback *PusherWorkerCallback, topics []string, zookeeper []string, zkPath string) *PusherWorker {
-	worker := new(PusherWorker)
-	worker.Callback = callback
-	worker.Topics = topics
-	worker.Zookeeper = zookeeper
-	worker.ZkPath = zkPath
-	return worker
+type WorkerCallback struct {
+	Url          string
+	RetryTimes   int
+	Timeout      time.Duration
+	BypassFailed bool
+	FailedSleep  time.Duration
 }
 
-func (this *PusherWorker) init() error {
+func NewWorker(callback *WorkerCallback, topics []string, zookeeper []string, zkPath string) *Worker {
+	return &Worker{
+		Callback:  callback,
+		Topics:    topics,
+		Zookeeper: zookeeper,
+		ZkPath:    zkPath,
+		Consumer:  nil,
+	}
+}
 
+func (this *Worker) Init() error {
 	config := consumergroup.NewConfig()
 	config.Offsets.ProcessingTimeout = 10 * time.Second
 	config.Offsets.Initial = sarama.OffsetNewest
@@ -62,14 +63,14 @@ func (this *PusherWorker) init() error {
 	return nil
 }
 
-func (this *PusherWorker) getGroupName() string {
+func (this *Worker) getGroupName() string {
 	m := md5.New()
 	m.Write([]byte(this.Callback.Url))
 	s := hex.EncodeToString(m.Sum(nil))
 	return s
 }
 
-func (this *PusherWorker) work() {
+func (this *Worker) Work() {
 
 	consumer := this.Consumer
 
@@ -129,7 +130,7 @@ func (this *PusherWorker) work() {
 
 }
 
-func (this *PusherWorker) delivery(msg *Msg, retry_times int) (success bool, err error) {
+func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error) {
 	log.Printf("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset)
 	v := url.Values{}
 
@@ -158,11 +159,11 @@ func (this *PusherWorker) delivery(msg *Msg, retry_times int) (success bool, err
 	return suc, err
 }
 
-func (this *PusherWorker) closed() bool {
+func (this *Worker) Closed() bool {
 	return this.Consumer.Closed()
 }
 
-func (this *PusherWorker) close() {
+func (this *Worker) Close() {
 	if err := this.Consumer.Close(); err != nil {
 		sarama.Logger.Println("Error closing the consumer", err)
 	}

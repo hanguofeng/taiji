@@ -7,8 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
-	"time"
 
 	"gopkg.in/Shopify/sarama.v1"
 )
@@ -18,28 +18,41 @@ const (
 )
 
 var (
-	configFile     = flag.String("c", "config.json", "the config file")
-	showVersion    = flag.Bool("v", false, "show version")
-	testConfigMode = flag.Bool("t", false, "test config")
+	configFile string
+	version    bool
+	testMode   bool
 )
 
+func init() {
+	flag.StringVar(&configFile, "c", "config.json", "the config file")
+	flag.BoolVar(&version, "v", false, "show version")
+	flag.BoolVar(&testMode, "t", false, "test config")
+}
+
+func getVersion() string {
+	return VERSION
+}
+
+func showVersion() {
+	fmt.Println(getVersion())
+	flag.Usage()
+}
+
 func main() {
-
 	flag.Parse()
+	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	if true == *showVersion {
-		fmt.Printf("taiji v%s \n", VERSION)
-		flag.Usage()
+	if version {
+		showVersion()
 		os.Exit(0)
 	}
 
-	config, err := loadConfig(*configFile)
-
+	config, err := loadConfig(configFile)
 	if nil != err {
 		log.Fatalf("load config err:%s", err.Error())
 	}
 
-	if true == *testConfigMode {
+	if testMode {
 		fmt.Println("config test ok")
 		fmt.Printf("config:%#v\n", config)
 		os.Exit(0)
@@ -58,21 +71,22 @@ func main() {
 		sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
 	}
 
-	manager := CreatePusherWorkerManager()
+	manager := NewManager()
 
 	var callbackConfig CallbackItemConfig
 	for _, callbackConfig = range config.Callbacks {
-		callback := new(PusherWorkerCallback)
-		callback.RetryTimes = callbackConfig.RetryTimes
-		callback.Url = callbackConfig.Url
-		callback.Timeout = callbackConfig.Timeout
-		callback.BypassFailed = callbackConfig.BypassFailed
-		callback.FailedSleep = callbackConfig.FailedSleep
+		callback := &WorkerCallback{
+			RetryTimes:   callbackConfig.RetryTimes,
+			Url:          callbackConfig.Url,
+			Timeout:      callbackConfig.Timeout,
+			BypassFailed: callbackConfig.BypassFailed,
+			FailedSleep:  callbackConfig.FailedSleep,
+		}
 		kafkaTopics := callbackConfig.Topics
 		zookeeper := callbackConfig.Zookeepers
 		zkPath := callbackConfig.ZkPath
 
-		worker := CreatePusherWorker(callback, kafkaTopics, zookeeper, zkPath)
+		worker := NewWorker(callback, kafkaTopics, zookeeper, zkPath)
 		manager.AddWorker(worker)
 	}
 
@@ -83,13 +97,7 @@ func main() {
 	}
 
 	manager.WorkAll()
-
-	go func() {
-		for {
-			manager.CheckAndRestart()
-			time.Sleep(time.Second * 20)
-		}
-	}()
+	manager.Supervise()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGKILL)
