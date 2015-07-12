@@ -4,13 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
-	"path/filepath"
-	"runtime"
-	"syscall"
-
-	"gopkg.in/Shopify/sarama.v1"
 )
 
 const (
@@ -39,74 +32,29 @@ func showVersion() {
 }
 
 func main() {
+	var err error
+
 	flag.Parse()
-	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	if version {
 		showVersion()
-		os.Exit(0)
-	}
-
-	config, err := loadConfig(configFile)
-	if nil != err {
-		log.Fatalf("load config err:%s", err.Error())
+		return
 	}
 
 	if testMode {
 		fmt.Println("config test ok")
-		fmt.Printf("config:%#v\n", config)
-		os.Exit(0)
+		return
 	}
 
-	if len(config.LogFile) > 0 {
-		os.MkdirAll(filepath.Dir(config.LogFile), 0777)
-		f, err := os.OpenFile(config.LogFile, os.O_RDWR|os.O_CREATE, 0666)
-		defer f.Close()
-		if nil != err {
-			log.Fatalf("write log failed")
-		}
-		log.SetOutput(f)
-		sarama.Logger = log.New(f, "[Sarama] ", log.LstdFlags)
-	} else {
-		sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
+	server := NewServer()
+	if err = server.Init(configFile); err != nil {
+		log.Fatalf("Init server failed, %s", err.Error())
+		return
 	}
+	log.Println("Init server success")
 
-	manager := NewManager()
-
-	var callbackConfig CallbackItemConfig
-	for _, callbackConfig = range config.Callbacks {
-		callback := &WorkerCallback{
-			RetryTimes:   callbackConfig.RetryTimes,
-			Url:          callbackConfig.Url,
-			Timeout:      callbackConfig.Timeout,
-			BypassFailed: callbackConfig.BypassFailed,
-			FailedSleep:  callbackConfig.FailedSleep,
-		}
-		kafkaTopics := callbackConfig.Topics
-		zookeeper := callbackConfig.Zookeepers
-		zkPath := callbackConfig.ZkPath
-
-		worker := NewWorker(callback, kafkaTopics, zookeeper, zkPath)
-		manager.AddWorker(worker)
+	if err = server.Run(); err != nil {
+		log.Fatalf("Run server failed, %s", err.Error())
+		return
 	}
-
-	err = manager.InitAll()
-
-	if nil != err {
-		log.Fatalf("init all error:%s", err.Error())
-	}
-
-	manager.WorkAll()
-	manager.Supervise()
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGKILL)
-
-	select {
-	case <-c:
-		log.Print("catch exit signal")
-		manager.CloseAll()
-		log.Print("exit done")
-	}
-
 }

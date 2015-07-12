@@ -1,33 +1,18 @@
 {
-	"log_file":"logs/taiji.log",
-    "callbacks": [
+    "consumer_groups": [
         {
-            "url": "http://localhost",
+            "worker_num" : 8,
+            "url": "http://localhost:8080/foo",
             "retry_times": 4,
-			"bypass_failed":true,
-			"failed_sleep":"12s",
+            "bypass_failed":true,
+            "failed_sleep":"12s",
             "timeout": "3s",
             "topics": [
-                "t1"
+                "yanl"
             ],
             "zookeepers": [
                 "127.0.0.1:2181"
-            ],
-            "zk_path": "/kafka/cart"
-        },
-        {
-            "url": "http://localhost/api/b",
-            "retry_times": 4,
-			"bypass_failed":false,
-			"failed_sleep":"2s",
-            "timeout": "1s",
-            "topics": [
-                "m2"
-            ],
-            "zookeepers": [
-                "127.0.0.1:2181"
-            ],
-            "zk_path": "/kafka/cart"
+            ]
         }
     ]
 }

@@ -16,20 +16,23 @@ func NewManager() *Manager {
 	}
 }
 
-func (this *Manager) AddWorker(worker *Worker) {
-	this.workers = append(this.workers, worker)
-}
+func (this *Manager) Init(config *CallbackItemConfig) error {
+	log.Printf("Init worker success. %v", config)
 
-func (this *Manager) InitAll() error {
-	for _, worker := range this.workers {
-		if err := worker.Init(); err != nil {
+	for i := 0; i < config.WorkerNum; i++ {
+		worker := NewWorker()
+		if err := worker.Init(config); err != nil {
+			log.Fatalf("Init worker for url[%s] failed, %s", config.Url, err.Error())
 			return err
 		}
+		log.Println("Init worker success.")
+
+		this.workers = append(this.workers, worker)
 	}
 	return nil
 }
 
-func (this *Manager) WorkAll() error {
+func (this *Manager) Work() error {
 	for _, worker := range this.workers {
 		if nil != worker.Consumer {
 			go worker.Work()
@@ -41,26 +44,25 @@ func (this *Manager) WorkAll() error {
 func (this *Manager) Supervise() {
 	go func() {
 		for {
-			this.CheckAndRestart()
+			this.checkAndRestart()
 			time.Sleep(this.superviseInterval * time.Second)
 		}
 	}()
 }
 
-func (this *Manager) CheckAndRestart() error {
+func (this *Manager) checkAndRestart() error {
 	log.Printf("checking workers begin...")
 	for _, worker := range this.workers {
 		if worker.Closed() {
-			worker.Init()
+			//worker.Init()
 			worker.Work()
 			log.Printf("found worker closed,already restarted")
 		}
 	}
-	log.Printf("checking workers done")
 	return nil
 }
 
-func (this *Manager) CloseAll() error {
+func (this *Manager) Close() error {
 	for _, worker := range this.workers {
 		worker.Close()
 	}

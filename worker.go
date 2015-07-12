@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wvanbergen/kafka/consumergroup"
+	"github.com/crask/kafka/consumergroup"
 	"gopkg.in/Shopify/sarama.v1"
 )
 
@@ -31,35 +31,40 @@ type WorkerCallback struct {
 	FailedSleep  time.Duration
 }
 
-func NewWorker(callback *WorkerCallback, topics []string, zookeeper []string, zkPath string) *Worker {
-	return &Worker{
-		Callback:  callback,
-		Topics:    topics,
-		Zookeeper: zookeeper,
-		ZkPath:    zkPath,
-		Consumer:  nil,
-	}
+func NewWorker() *Worker {
+	return &Worker{}
 }
 
-func (this *Worker) Init() error {
-	config := consumergroup.NewConfig()
-	config.Offsets.ProcessingTimeout = 10 * time.Second
-	config.Offsets.Initial = sarama.OffsetNewest
+func (this *Worker) Init(config *CallbackItemConfig) error {
+	this.Callback = &WorkerCallback{
+		Url:          config.Url,
+		RetryTimes:   config.RetryTimes,
+		Timeout:      config.Timeout,
+		BypassFailed: config.BypassFailed,
+		FailedSleep:  config.FailedSleep,
+	}
+	this.Topics = config.Topics
+	this.Zookeeper = config.Zookeepers
+	this.ZkPath = config.ZkPath
+	this.Consumer = nil
+
+	cgConfig := consumergroup.NewConfig()
+	cgConfig.Offsets.ProcessingTimeout = 10 * time.Second
+	cgConfig.Offsets.Initial = sarama.OffsetNewest
 	if len(this.ZkPath) > 0 {
-		config.Zookeeper.Chroot = this.ZkPath
+		cgConfig.Zookeeper.Chroot = this.ZkPath
 	}
 
-	consumerGroup := this.getGroupName()
-	topics := this.Topics
-	zookeeper := this.Zookeeper
-
-	consumer, consumerErr := consumergroup.JoinConsumerGroup(consumerGroup, topics, zookeeper, config)
-	if consumerErr != nil {
-		return consumerErr
+	cgName := this.getGroupName()
+	consumer, err := consumergroup.JoinConsumerGroup(cgName, this.Topics, this.Zookeeper, cgConfig)
+	if err != nil {
+		log.Fatalf("Failed to join consumer group for url[%s], %s", this.Callback.Url, err.Error())
+		return err
+	} else {
+		log.Printf("Join consumer group for url[%s] with UUID[%s]", this.Callback.Url, cgName)
 	}
 
 	this.Consumer = consumer
-
 	return nil
 }
 
