@@ -3,11 +3,12 @@ package main
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
+	//"net/url"
 	"strings"
 	"time"
 
@@ -137,21 +138,34 @@ func (this *Worker) Work() {
 
 func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error) {
 	log.Printf("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset)
-	v := url.Values{}
+	//v := url.Values{}
 
-	v.Set("_topic", msg.Topic)
-	v.Set("_key", fmt.Sprintf("%s", msg.Key))
-	v.Set("_offset", fmt.Sprintf("%d", msg.Offset))
-	v.Set("_partition", fmt.Sprintf("%d", msg.Partition))
-	v.Set("message", fmt.Sprintf("%s", msg.Value))
+	//v.Set("_topic", msg.Topic)
+	//v.Set("_key", fmt.Sprintf("%s", msg.Key))
+	//v.Set("_offset", fmt.Sprintf("%d", msg.Offset))
+	//v.Set("_partition", fmt.Sprintf("%d", msg.Partition))
+	//v.Set("message", fmt.Sprintf("%s", msg.Value))
 
-	body := ioutil.NopCloser(strings.NewReader(v.Encode()))
+	//body := ioutil.NopCloser(strings.NewReader(v.Encode()))
 	client := &http.Client{}
 	client.Timeout = this.Callback.Timeout
-	req, _ := http.NewRequest("POST", this.Callback.Url, body)
+	//req, _ := http.NewRequest("POST", this.Callback.Url, body)
+	type RMSG struct {
+		Topic        string `json:"Topic"`
+		PartitionKey string `json:"PartitionKey"`
+		TimeStamp    int    `json:"TimeStamp"`
+		Data         string `json:"Data"`
+	}
+	var rmsg RMSG
+	json.Unmarshal(msg.Value, &rmsg)
+	req, _ := http.NewRequest("POST", this.Callback.Url, ioutil.NopCloser(strings.NewReader(rmsg.Data)))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
 	req.Header.Set("User-Agent", "Taiji pusher consumer(go)/v"+VERSION)
 	req.Header.Set("X-Retry-Times", fmt.Sprintf("%d", retry_times))
+	req.Header.Set("X-KMQ-TOPIC", msg.Topic)
+	req.Header.Set("X-KMQ-PARTITION", fmt.Sprintf("%d", msg.Partition))
+	req.Header.Set("X-KMQ-PARTITION-KEY", rmsg.PartitionKey)
+	req.Header.Set("X-KMQ-TIMESTAMP", fmt.Sprintf("%d", rmsg.TimeStamp))
 	resp, err := client.Do(req)
 	suc := true
 	if nil == err {
