@@ -16,6 +16,7 @@ const (
 )
 
 type CallbackItemConfig struct {
+	WorkerNum      int           `json:"worker_num"`
 	Url            string        `json:"url"`
 	RetryTimes     int           `json:"retry_times"`
 	TimeoutStr     string        `json:"timeout"`
@@ -30,7 +31,7 @@ type CallbackItemConfig struct {
 
 type ServiceConfig struct {
 	LogFile   string               `json:"log_file"`
-	Callbacks []CallbackItemConfig `json:"callbacks"`
+	Callbacks []CallbackItemConfig `json:"consumer_groups"`
 }
 
 func loadConfig(configFile string) (*ServiceConfig, error) {

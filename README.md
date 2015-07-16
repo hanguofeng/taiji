@@ -15,7 +15,7 @@ Taiji has some actions such as pull and push,this is similar to this consumer.
 ## Install
 
 ```
-go get github.com/hanguofeng/taiji
+go get github.com/crask/kafka-pusher
 ```
 
 # Run
@@ -33,13 +33,14 @@ taiji -t	#test config
 
 ```
 {
-	"log_file":"logs/taiji.log",  	//the log file,if no this option,will output to stdout
-    "callbacks": [                	//support multi callback url
+    "log_file":"logs/taiji.log",        //the log file,if no this option,will output to stdout
+    "consumer_groups": [                //support multi callback url
         {
+            "worker_num": 16,
             "url": "http://localhost",  //callback url
             "retry_times": 4,           //will retry if the callback request response non 200 code
-		      	"bypass_failed":true,       //auto jump to next if single message were processed failed,set to false if service need to process message exactlly
-			      "failed_sleep":"12s",       //when bypass_failed set to true,sleep this time before retry
+            "bypass_failed":true,       //auto jump to next if single message were processed failed,set to false if service need to process message exactlly
+            "failed_sleep":"12s",       //when bypass_failed set to true,sleep this time before retry
             "timeout": "3s",            //the callback time
             "topics": [                 //topic(s) consumed
                 "t1"
@@ -47,13 +48,12 @@ taiji -t	#test config
             "zookeepers": [             //zookeeper hosts
                 "127.0.0.1:2181"
             ],
-            "zk_path": "/kafka/cart"    //zookeeper path
         },
         {
             "url": "http://localhost/api/b",
             "retry_times": 4,
-			      "bypass_failed":false,
-			      "failed_sleep":"2s",
+            "bypass_failed":false,
+            "failed_sleep":"2s",
             "timeout": "1s",
             "topics": [
                 "m2"
@@ -61,7 +61,7 @@ taiji -t	#test config
             "zookeepers": [
                 "127.0.0.1:2181"
             ],
-            "zk_path": "/kafka/cart"
+            "zk_path": "/chroot"
         }
     ]
 }
