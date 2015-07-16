@@ -162,10 +162,10 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
 	req.Header.Set("User-Agent", "Taiji pusher consumer(go)/v"+VERSION)
 	req.Header.Set("X-Retry-Times", fmt.Sprintf("%d", retry_times))
-	req.Header.Set("X-KMQ-TOPIC", msg.Topic)
-	req.Header.Set("X-KMQ-PARTITION", fmt.Sprintf("%d", msg.Partition))
-	req.Header.Set("X-KMQ-PARTITION-KEY", rmsg.PartitionKey)
-	req.Header.Set("X-KMQ-TIMESTAMP", fmt.Sprintf("%d", rmsg.TimeStamp))
+	req.Header.Set("X-Kmq-Topic", msg.Topic)
+	req.Header.Set("X-Kmq-Partition", fmt.Sprintf("%d", msg.Partition))
+	req.Header.Set("X-Kmq-Partition-Key", rmsg.PartitionKey)
+	req.Header.Set("X-Kmq-Timestamp", fmt.Sprintf("%d", rmsg.TimeStamp))
 	resp, err := client.Do(req)
 	suc := true
 	if nil == err {
