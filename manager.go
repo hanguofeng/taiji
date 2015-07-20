@@ -18,7 +18,7 @@ func NewManager() *Manager {
 }
 
 func (this *Manager) Init(config *CallbackItemConfig) error {
-	glog.Infof("Init worker success. %v", config)
+	glog.V(1).Infof("Init worker success. %v", config)
 
 	for i := 0; i < config.WorkerNum; i++ {
 		worker := NewWorker()
@@ -26,7 +26,7 @@ func (this *Manager) Init(config *CallbackItemConfig) error {
 			glog.Fatalf("Init worker for url[%s] failed, %s", config.Url, err.Error())
 			return err
 		}
-		glog.Info("Init worker success.")
+		glog.V(1).Info("Init worker success.")
 
 		this.workers = append(this.workers, worker)
 	}
@@ -52,12 +52,12 @@ func (this *Manager) Supervise() {
 }
 
 func (this *Manager) checkAndRestart() error {
-	glog.Info("checking workers begin...")
+	glog.V(1).Info("checking workers begin...")
 	for _, worker := range this.workers {
 		if worker.Closed() {
 			//worker.Init()
 			worker.Work()
-			glog.Info("found worker closed,already restarted")
+			glog.V(1).Info("found worker closed,already restarted")
 		}
 	}
 	return nil

@@ -49,7 +49,7 @@ func (this *Server) Run() error {
 	for _, mgr := range this.managers {
 		mgr.Work()
 	}
-	glog.Infoln("managers get to work!")
+	glog.Info("managers get to work!")
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGKILL)
