@@ -1,8 +1,9 @@
 package main
 
 import (
-	"log"
 	"time"
+
+	"github.com/golang/glog"
 )
 
 type Manager struct {
@@ -17,15 +18,15 @@ func NewManager() *Manager {
 }
 
 func (this *Manager) Init(config *CallbackItemConfig) error {
-	log.Printf("Init worker success. %v", config)
+	glog.Infof("Init worker success. %v", config)
 
 	for i := 0; i < config.WorkerNum; i++ {
 		worker := NewWorker()
 		if err := worker.Init(config); err != nil {
-			log.Fatalf("Init worker for url[%s] failed, %s", config.Url, err.Error())
+			glog.Fatalf("Init worker for url[%s] failed, %s", config.Url, err.Error())
 			return err
 		}
-		log.Println("Init worker success.")
+		glog.Info("Init worker success.")
 
 		this.workers = append(this.workers, worker)
 	}
@@ -51,12 +52,12 @@ func (this *Manager) Supervise() {
 }
 
 func (this *Manager) checkAndRestart() error {
-	log.Printf("checking workers begin...")
+	glog.Info("checking workers begin...")
 	for _, worker := range this.workers {
 		if worker.Closed() {
 			//worker.Init()
 			worker.Work()
-			log.Printf("found worker closed,already restarted")
+			glog.Info("found worker closed,already restarted")
 		}
 	}
 	return nil

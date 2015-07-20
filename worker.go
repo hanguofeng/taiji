@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	//"net/url"
 	"strings"
 	"time"
 
 	"github.com/crask/kafka/consumergroup"
+	"github.com/golang/glog"
 	"gopkg.in/Shopify/sarama.v1"
 )
 
@@ -59,10 +59,10 @@ func (this *Worker) Init(config *CallbackItemConfig) error {
 	cgName := this.getGroupName()
 	consumer, err := consumergroup.JoinConsumerGroup(cgName, this.Topics, this.Zookeeper, cgConfig)
 	if err != nil {
-		log.Fatalf("Failed to join consumer group for url[%s], %s", this.Callback.Url, err.Error())
+		glog.Fatalf("Failed to join consumer group for url[%s], %s", this.Callback.Url, err.Error())
 		return err
 	} else {
-		log.Printf("Join consumer group for url[%s] with UUID[%s]", this.Callback.Url, cgName)
+		glog.Infof("Join consumer group for url[%s] with UUID[%s]", this.Callback.Url, cgName)
 	}
 
 	this.Consumer = consumer
@@ -82,7 +82,7 @@ func (this *Worker) Work() {
 
 	go func() {
 		for err := range consumer.Errors() {
-			log.Println(err)
+			glog.Errorln(err)
 		}
 	}()
 
@@ -96,11 +96,11 @@ func (this *Worker) Work() {
 
 		eventCount += 1
 		if offsets[message.Topic][message.Partition] != 0 && offsets[message.Topic][message.Partition] != message.Offset-1 {
-			log.Printf("Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n", message.Topic, message.Partition, offsets[message.Topic][message.Partition]+1, message.Offset, message.Offset-offsets[message.Topic][message.Partition]+1)
+			glog.Infof("Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n", message.Topic, message.Partition, offsets[message.Topic][message.Partition]+1, message.Offset, message.Offset-offsets[message.Topic][message.Partition]+1)
 		}
 
 		msg := CreateMsg(message)
-		log.Printf("received message,[topic:%s][partition:%d][offset:%d]", msg.Topic, msg.Partition, msg.Offset)
+		glog.Infof("received message,[topic:%s][partition:%d][offset:%d]", msg.Topic, msg.Partition, msg.Offset)
 
 		deliverySuccessed := false
 		retry_times := 0
@@ -119,10 +119,10 @@ func (this *Worker) Work() {
 			}
 
 			if this.Callback.BypassFailed {
-				log.Printf("tried to delivery message [url:%s][topic:%s][partition:%d][offset:%d] for %d times and all failed. BypassFailed is :%t ,will not retry", this.Callback.Url, msg.Topic, msg.Partition, msg.Offset, retry_times, this.Callback.BypassFailed)
+				glog.Infof("tried to delivery message [url:%s][topic:%s][partition:%d][offset:%d] for %d times and all failed. BypassFailed is :%t ,will not retry", this.Callback.Url, msg.Topic, msg.Partition, msg.Offset, retry_times, this.Callback.BypassFailed)
 				break
 			} else {
-				log.Printf("tried to delivery message [url:%s][topic:%s][partition:%d][offset:%d] for %d times and all failed. BypassFailed is :%t ,sleep %s to retry", this.Callback.Url, msg.Topic, msg.Partition, msg.Offset, retry_times, this.Callback.BypassFailed, this.Callback.FailedSleep)
+				glog.Infof("tried to delivery message [url:%s][topic:%s][partition:%d][offset:%d] for %d times and all failed. BypassFailed is :%t ,sleep %s to retry", this.Callback.Url, msg.Topic, msg.Partition, msg.Offset, retry_times, this.Callback.BypassFailed, this.Callback.FailedSleep)
 				time.Sleep(this.Callback.FailedSleep)
 				retry_times = 0
 			}
@@ -130,14 +130,14 @@ func (this *Worker) Work() {
 
 		offsets[message.Topic][message.Partition] = message.Offset
 		consumer.CommitUpto(message)
-		log.Printf("commited message,[topic:%s][partition:%d][offset:%d]", msg.Topic, msg.Partition, msg.Offset)
+		glog.Infof("commited message,[topic:%s][partition:%d][offset:%d]", msg.Topic, msg.Partition, msg.Offset)
 
 	}
 
 }
 
 func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error) {
-	log.Printf("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset)
+	glog.Infof("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset)
 	//v := url.Values{}
 
 	//v.Set("_topic", msg.Topic)
@@ -172,7 +172,7 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 		defer resp.Body.Close()
 		suc = (resp.StatusCode == 200)
 	} else {
-		log.Printf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][error:%s]", retry_times, msg.Topic, msg.Partition, msg.Offset, err.Error())
+		glog.Infof("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][error:%s]", retry_times, msg.Topic, msg.Partition, msg.Offset, err.Error())
 		suc = false
 	}
 	return suc, err
@@ -184,6 +184,6 @@ func (this *Worker) Closed() bool {
 
 func (this *Worker) Close() {
 	if err := this.Consumer.Close(); err != nil {
-		sarama.Logger.Println("Error closing the consumer", err)
+		glog.Errorln("Error closing the consumer", err)
 	}
 }
