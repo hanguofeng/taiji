@@ -19,19 +19,32 @@ go get github.com/crask/kafka-pusher
 # Run
 
 ```
-taiji -c="config.json"
+kafka-pusher -c="config.json"
 ```
 
 ```
-taiji -v	#show version
-taiji -t	#test config
+kafka-pusher -V	#show version
+kafka-pusher -t	#test config
+
+    // glog params
+    -logtostderr=false
+        Logs are written to standard error instead of to files.
+    -alsologtostderr=false
+        Logs are written to standard error as well as to files.
+    -stderrthreshold=ERROR
+        Log events at or above this severity are logged to standard
+        error as well as to files.
+    -log_dir=""
+        Log files will be written to this directory instead of the
+        default temporary directory.
+    -v=0
+        Enable V-leveled logging at the specified level.
 ```
 
 ## Config
 
 ```
 {
-    "log_file":"logs/taiji.log",        //the log file,if no this option,will output to stdout
     "consumer_groups": [                //support multi callback url
         {
             "worker_num": 16,
