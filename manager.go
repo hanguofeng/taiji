@@ -23,7 +23,7 @@ func (this *Manager) Init(config *CallbackItemConfig) error {
 	for i := 0; i < config.WorkerNum; i++ {
 		worker := NewWorker()
 		if err := worker.Init(config); err != nil {
-			glog.Fatalf("Init worker for url[%s] failed, %s", config.Url, err.Error())
+			glog.Fatalf("Init worker for url[%v] failed, %v", config.Url, err.Error())
 			return err
 		}
 		glog.V(1).Info("Init worker success.")

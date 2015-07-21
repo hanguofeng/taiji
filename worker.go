@@ -59,7 +59,7 @@ func (this *Worker) Init(config *CallbackItemConfig) error {
 	cgName := this.getGroupName()
 	consumer, err := consumergroup.JoinConsumerGroup(cgName, this.Topics, this.Zookeeper, cgConfig)
 	if err != nil {
-		glog.Fatalf("Failed to join consumer group for url[%s], %s", this.Callback.Url, err.Error())
+		glog.Errorf("Failed to join consumer group for url[%v], %v", this.Callback.Url, err.Error())
 		return err
 	} else {
 		glog.V(1).Infof("Join consumer group for url[%s] with UUID[%s]", this.Callback.Url, cgName)

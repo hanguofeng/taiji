@@ -52,13 +52,13 @@ func main() {
 
 	server := NewServer()
 	if err = server.Init(configFile); err != nil {
-		glog.Fatalf("Init server failed, %s", err.Error())
+		glog.Errorf("[Pusher]Init server failed, %s", err.Error())
 		return
 	}
-	glog.Info("Init server success")
+	glog.V(2).Info("[Pusher]Init server success")
 
 	if err = server.Run(); err != nil {
-		glog.Fatalf("Run server failed, %s", err.Error())
+		glog.Errorf("[Pusher]Run server failed, %s", err.Error())
 		return
 	}
 }
