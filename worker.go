@@ -160,6 +160,7 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 	req.Header.Set("X-Kmq-Partition", fmt.Sprintf("%d", msg.Partition))
 	req.Header.Set("X-Kmq-Partition-Key", rmsg.PartitionKey)
 	req.Header.Set("X-Kmq-Offset", fmt.Sprintf("%d", msg.Offset))
+	req.Header.Set("Meilishuo","uid:0;ip:0.0.0.0;v:0;master:0")
 	req.Header.Set("X-Kmq-Timestamp", fmt.Sprintf("%d", rmsg.TimeStamp))
 	resp, err := client.Do(req)
 	suc := true
