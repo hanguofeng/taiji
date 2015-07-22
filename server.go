@@ -2,17 +2,34 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
+	"sync"
+	"time"
+	//"path/filepath"
 	"runtime"
 	"syscall"
 
+	"github.com/golang/glog"
 	"gopkg.in/Shopify/sarama.v1"
 )
 
+type HTTPServer struct {
+	Addr            string
+	Handler         http.Handler
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
+	MaxHeaderBytes  int
+	KeepAliveEnable bool
+	RouterFunc      func(map[string]func(http.ResponseWriter, *http.Request))
+	Wg              *sync.WaitGroup
+	Mux             map[string]func(http.ResponseWriter, *http.Request)
+}
+
 type Server struct {
 	managers []*Manager
+	httpsvr  *http.Server
 }
 
 func NewServer() *Server {
@@ -24,53 +41,65 @@ func (this *Server) Init(configFile string) error {
 
 	config, err := loadConfig(configFile)
 	if err != nil {
-		log.Fatalf("Load Config err: %s", err.Error())
+		glog.Fatalf("[Pusher]Load Config err: %s", err.Error())
 		return err
 	}
 
-	// init log
-	if len(config.LogFile) > 0 {
-		os.MkdirAll(filepath.Dir(config.LogFile), 0777)
-		f, err := os.OpenFile(config.LogFile, os.O_RDWR|os.O_CREATE, 0666)
-		defer f.Close()
-		if nil != err {
-			log.Fatalf("write log failed")
-		}
-		log.SetOutput(f)
-		sarama.Logger = log.New(f, "[Sarama] ", log.LstdFlags)
-	} else {
-		sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
-	}
+	// init sarama logger
+	sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
 
+	// init consumer managers
 	for _, callbackConfig := range config.Callbacks {
-		log.Println(callbackConfig)
+		glog.Infoln(callbackConfig)
 		manager := NewManager()
 		if e := manager.Init(&callbackConfig); e != nil {
-			log.Fatalf("Init manager for url[%s] failed, %s", callbackConfig.Url, e.Error())
+			glog.Fatalf("[Pusher]Init manager for url[%s] failed, %s", callbackConfig.Url, e.Error())
 			return e
 		}
 		this.managers = append(this.managers, manager)
+	}
+
+	// init http service
+	hdl := NewHandler()
+	hdl.AssignRouter()
+
+	this.httpsvr = &http.Server{
+		Addr:           ":8080",
+		Handler:        hdl,
+		ReadTimeout:    1 * time.Second,
+		WriteTimeout:   1 * time.Second,
+		MaxHeaderBytes: 1 << 20,
 	}
 
 	return nil
 }
 
 func (this *Server) Run() error {
+
+	// run consumer managers
 	for _, mgr := range this.managers {
 		mgr.Work()
 	}
-	log.Println("managers get to work!")
+	glog.V(2).Info("[Pusher]Managers get to work!")
 
+	// run http service
+	if err := this.httpsvr.ListenAndServe(); err != nil {
+		glog.Fatalln("[Pusher]Start admin http server failed.", err)
+		return err
+	}
+	glog.V(2).Info("[Pusher]Start admin http server success.")
+
+	// register signal callback
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGKILL)
 
 	select {
 	case <-c:
-		log.Print("catch exit signal")
+		glog.V(2).Info("[Pusher]Catch exit signal")
 		for _, mgr := range this.managers {
 			mgr.Close()
 		}
-		log.Print("exit done")
+		glog.V(2).Info("[Pusher]Exit done")
 	}
 
 	return nil

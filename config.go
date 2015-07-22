@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"time"
+
+	"github.com/golang/glog"
 )
 
 const (
@@ -53,7 +54,7 @@ func loadConfig(configFile string) (*ServiceConfig, error) {
 		callback := &c.Callbacks[i]
 		callback.Timeout, err = time.ParseDuration(callback.TimeoutStr)
 		if nil != err {
-			log.Printf("callback config timeout error(%s),using default.config value:%s", err.Error(), callback.TimeoutStr)
+			glog.Errorf("callback config timeout error(%s),using default.config value:%s", err.Error(), callback.TimeoutStr)
 
 			callback.Timeout = CFG_DEFAULT_TIMEOUT
 			callback.TimeoutStr = fmt.Sprintf("%dms", CFG_DEFAULT_TIMEOUT/time.Millisecond)
@@ -61,7 +62,7 @@ func loadConfig(configFile string) (*ServiceConfig, error) {
 
 		callback.FailedSleep, err = time.ParseDuration(callback.FailedSleepStr)
 		if nil != err {
-			log.Printf("callback config failed_sleep error(%s),using default.config value:%s", err.Error(), callback.FailedSleepStr)
+			glog.Errorf("callback config failed_sleep error(%s),using default.config value:%s", err.Error(), callback.FailedSleepStr)
 
 			callback.FailedSleep = CFG_DEFAULT_FAILED_SLEEP
 			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_DEFAULT_FAILED_SLEEP/time.Millisecond)
@@ -69,7 +70,7 @@ func loadConfig(configFile string) (*ServiceConfig, error) {
 		}
 
 		if callback.FailedSleep < CFG_MIN_FAILED_SLEEP {
-			log.Printf("callback config failed_sleep too small,using min.config value:%s,%s", callback.FailedSleep, callback.FailedSleepStr)
+			glog.Errorf("callback config failed_sleep too small,using min.config value:%s,%s", callback.FailedSleep, callback.FailedSleepStr)
 
 			callback.FailedSleep = CFG_MIN_FAILED_SLEEP
 			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_MIN_FAILED_SLEEP/time.Millisecond)

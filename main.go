@@ -3,7 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
+
+	"github.com/golang/glog"
 )
 
 const (
@@ -14,11 +15,12 @@ var (
 	configFile string
 	version    bool
 	testMode   bool
+	server     *Server
 )
 
 func init() {
 	flag.StringVar(&configFile, "c", "config.json", "the config file")
-	flag.BoolVar(&version, "v", false, "show version")
+	flag.BoolVar(&version, "V", false, "show version")
 	flag.BoolVar(&testMode, "t", false, "test config")
 }
 
@@ -35,6 +37,9 @@ func main() {
 	var err error
 
 	flag.Parse()
+	defer func() {
+		glog.Flush()
+	}()
 
 	if version {
 		showVersion()
@@ -46,15 +51,15 @@ func main() {
 		return
 	}
 
-	server := NewServer()
+	server = NewServer()
 	if err = server.Init(configFile); err != nil {
-		log.Fatalf("Init server failed, %s", err.Error())
+		glog.Errorf("[Pusher]Init server failed, %s", err.Error())
 		return
 	}
-	log.Println("Init server success")
+	glog.V(2).Info("[Pusher]Init server success")
 
 	if err = server.Run(); err != nil {
-		log.Fatalf("Run server failed, %s", err.Error())
+		glog.Errorf("[Pusher]Run server failed, %s", err.Error())
 		return
 	}
 }

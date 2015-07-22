@@ -17,6 +17,10 @@
 			"Rev": "ded5959c0d4e360646dc9e9908cff48666781367"
 		},
 		{
+			"ImportPath": "github.com/golang/glog",
+			"Rev": "44145f04b68cf362d9c4df2182967c2275eaefed"
+		},
+		{
 			"ImportPath": "github.com/golang/snappy/snappy",
 			"Rev": "eaa750b9bf4dcb7cb20454be850613b66cda3273"
 		},
