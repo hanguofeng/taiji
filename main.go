@@ -15,6 +15,7 @@ var (
 	configFile string
 	version    bool
 	testMode   bool
+	server     *Server
 )
 
 func init() {
@@ -50,7 +51,7 @@ func main() {
 		return
 	}
 
-	server := NewServer()
+	server = NewServer()
 	if err = server.Init(configFile); err != nil {
 		glog.Errorf("[Pusher]Init server failed, %s", err.Error())
 		return

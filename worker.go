@@ -65,6 +65,8 @@ func (this *Worker) Init(config *CallbackItemConfig) error {
 		glog.V(1).Infof("Join consumer group for url[%s] with UUID[%s]", this.Callback.Url, cgName)
 	}
 
+	glog.Infoln(consumer)
+
 	this.Consumer = consumer
 	return nil
 }

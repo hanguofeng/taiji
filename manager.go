@@ -7,6 +7,8 @@ import (
 )
 
 type Manager struct {
+	Topic             string
+	Url               string
 	workers           []*Worker
 	superviseInterval time.Duration
 }
@@ -19,6 +21,8 @@ func NewManager() *Manager {
 
 func (this *Manager) Init(config *CallbackItemConfig) error {
 	glog.V(1).Infof("Init worker success. %v", config)
+	this.Topic = config.Topics[0]
+	this.Url = config.Url
 
 	for i := 0; i < config.WorkerNum; i++ {
 		worker := NewWorker()
