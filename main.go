@@ -16,12 +16,14 @@ var (
 	version    bool
 	testMode   bool
 	server     *Server
+	statPort   int
 )
 
 func init() {
 	flag.StringVar(&configFile, "c", "config.json", "the config file")
 	flag.BoolVar(&version, "V", false, "show version")
 	flag.BoolVar(&testMode, "t", false, "test config")
+	flag.IntVar(&statPort, "s", -1, "set stat server port")
 }
 
 func getVersion() string {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -60,15 +61,17 @@ func (this *Server) Init(configFile string) error {
 	}
 
 	// init http service
-	hdl := NewHandler()
-	hdl.AssignRouter()
+	if statPort > 0 {
+		hdl := NewHandler()
+		hdl.AssignRouter()
 
-	this.httpsvr = &http.Server{
-		Addr:           ":8080",
-		Handler:        hdl,
-		ReadTimeout:    1 * time.Second,
-		WriteTimeout:   1 * time.Second,
-		MaxHeaderBytes: 1 << 20,
+		this.httpsvr = &http.Server{
+			Addr:           fmt.Sprintf(":%d", statPort),
+			Handler:        hdl,
+			ReadTimeout:    1 * time.Second,
+			WriteTimeout:   1 * time.Second,
+			MaxHeaderBytes: 1 << 20,
+		}
 	}
 
 	return nil
@@ -83,11 +86,13 @@ func (this *Server) Run() error {
 	glog.V(2).Info("[Pusher]Managers get to work!")
 
 	// run http service
-	if err := this.httpsvr.ListenAndServe(); err != nil {
-		glog.Fatalln("[Pusher]Start admin http server failed.", err)
-		return err
+	if statPort > 0 {
+		if err := this.httpsvr.ListenAndServe(); err != nil {
+			glog.Fatalln("[Pusher]Start admin http server failed.", err)
+			return err
+		}
+		glog.V(2).Info("[Pusher]Start admin http server success.")
 	}
-	glog.V(2).Info("[Pusher]Start admin http server success.")
 
 	// register signal callback
 	c := make(chan os.Signal, 1)

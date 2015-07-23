@@ -2,7 +2,7 @@
 
 Taiji is a pusher consumer for kafka.
 
-Taiji can pull message from kafka and push it to more consumer via http call.
+Taiji can pull message from kafka and push it to more consumer via http post call.
 
 ## The name
 
@@ -14,19 +14,30 @@ Taiji has some actions such as pull and push,this is similar to this consumer.
 
 ```
 go get github.com/crask/kafka-pusher
+godep go build
 ```
 
-# Run
+# Usage
 
 ```
-kafka-pusher -c="config.json"
+kafka-pusher -c=config.json -log_dir=log -v=2 -s 8088
 ```
 
 ```
-kafka-pusher -V	#show version
-kafka-pusher -t	#test config
+    // Kafka pusher params
+    -V=false
+        show version
+    -t=false
+        test config
+    -s <stat port number>
+        set http stat server port
 
     // glog params
+    -log_dir=""
+        Log files will be written to this directory instead of the
+        default temporary directory.
+    -v=0
+        Enable V-leveled logging at the specified level.
     -logtostderr=false
         Logs are written to standard error instead of to files.
     -alsologtostderr=false
@@ -34,11 +45,6 @@ kafka-pusher -t	#test config
     -stderrthreshold=ERROR
         Log events at or above this severity are logged to standard
         error as well as to files.
-    -log_dir=""
-        Log files will be written to this directory instead of the
-        default temporary directory.
-    -v=0
-        Enable V-leveled logging at the specified level.
 ```
 
 ## Config
