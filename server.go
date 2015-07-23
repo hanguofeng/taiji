@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -108,4 +109,13 @@ func (this *Server) Run() error {
 	}
 
 	return nil
+}
+
+func (this *Server) Find(topic, group string) (*Manager, error) {
+	for _, mgr := range this.managers {
+		if mgr.Topic == topic || mgr.Group == group {
+			return mgr, nil
+		}
+	}
+	return nil, errors.New("Manager not found")
 }
