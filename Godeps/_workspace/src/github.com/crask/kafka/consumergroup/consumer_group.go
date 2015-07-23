@@ -171,6 +171,16 @@ func JoinConsumerGroup(name string, topics []string, zookeeper []string, config 
 	return
 }
 
+// Returns Kazoo ConsumergroupInstance
+func (cg *ConsumerGroup) Instance() *kazoo.ConsumergroupInstance {
+	return cg.instance
+}
+
+// Returns OffsetManager
+func (cg *ConsumerGroup) OffsetManager() OffsetManager {
+	return cg.offsetManager
+}
+
 // Returns a channel that you can read to obtain events from Kafka to process.
 func (cg *ConsumerGroup) Messages() <-chan *sarama.ConsumerMessage {
 	return cg.messages

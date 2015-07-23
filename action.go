@@ -26,18 +26,27 @@ func HttpStatWorkerAction(w http.ResponseWriter, r *http.Request) {
 	type workerStat struct {
 		Topic     string
 		Url       string
-		Partition uint32
+		Partition int32
 		UUID      string
-		Offset    uint64
+		Offset    int64
 	}
 	var res []workerStat
 	for _, mgr := range server.managers {
 		for _, worker := range mgr.workers {
-			res = append(res, workerStat{
-				Topic:     worker.Topics[0],
-				Url:       worker.Callback.Url,
-				Partition: 123,
-			})
+			offset, err := worker.Consumer.OffsetManager().Offsets(worker.Topics[0])
+			if err != nil {
+				continue
+			}
+			for k, v := range offset {
+
+				res = append(res, workerStat{
+					Topic:     worker.Topics[0],
+					Url:       worker.Callback.Url,
+					Partition: k,
+					UUID:      worker.Consumer.Instance().ID,
+					Offset:    v,
+				})
+			}
 		}
 	}
 
@@ -45,7 +54,13 @@ func HttpStatWorkerAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func HttpAdminSkipAction(w http.ResponseWriter, r *http.Request) {
-	echo2client(w, r, "")
+	query := r.URL.Query()
+
+	topic := query.Get("topic")
+	partition := query.Get("partiton")
+	offset := query.Get("offset")
+
+	echo2client(w, r, topic+partition+offset)
 }
 
 func echo2client(w http.ResponseWriter, r *http.Request, data interface{}) {

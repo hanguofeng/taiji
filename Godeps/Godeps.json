@@ -4,7 +4,7 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/crask/kafka/consumergroup",
-			"Rev": "270a760a8fe65322cad0b6f21802b756db035057"
+			"Rev": "b9cbfe21caaf303141c3170f9f170bacca78c9f1"
 		},
 		{
 			"ImportPath": "github.com/eapache/go-resiliency/breaker",

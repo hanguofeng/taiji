@@ -39,6 +39,8 @@ type OffsetManager interface {
 	// consumers. You may want to check for this to be true, and try to commit any outstanding
 	// offsets. If this doesn't succeed, it should return an error.
 	Close() error
+
+	Offsets(topic string) (map[int32]int64, error)
 }
 
 var (
@@ -59,12 +61,12 @@ func NewOffsetManagerConfig() *OffsetManagerConfig {
 }
 
 type (
-	topicOffsets    map[int32]*partitionOffsetTracker
-	offsetsMap      map[string]topicOffsets
+	TopicOffsets    map[int32]*PartitionOffsetTracker
+	OffsetsMap      map[string]TopicOffsets
 	offsetCommitter func(int64) error
 )
 
-type partitionOffsetTracker struct {
+type PartitionOffsetTracker struct {
 	l                      sync.Mutex
 	waitingForOffset       int64
 	highestProcessedOffset int64
@@ -75,7 +77,7 @@ type partitionOffsetTracker struct {
 type zookeeperOffsetManager struct {
 	config  *OffsetManagerConfig
 	l       sync.RWMutex
-	offsets offsetsMap
+	offsets OffsetsMap
 	cg      *ConsumerGroup
 
 	closing, closed chan struct{}
@@ -91,7 +93,7 @@ func NewZookeeperOffsetManager(cg *ConsumerGroup, config *OffsetManagerConfig) O
 	zom := &zookeeperOffsetManager{
 		config:  config,
 		cg:      cg,
-		offsets: make(offsetsMap),
+		offsets: make(OffsetsMap),
 		closing: make(chan struct{}),
 		closed:  make(chan struct{}),
 	}
@@ -101,12 +103,27 @@ func NewZookeeperOffsetManager(cg *ConsumerGroup, config *OffsetManagerConfig) O
 	return zom
 }
 
+func (zom *zookeeperOffsetManager) Offsets(topic string) (map[int32]int64, error) {
+
+	topic_offsets, ok := zom.offsets[topic]
+	if !ok {
+		return nil, errors.New("invalid topic")
+	}
+
+	res := make(map[int32]int64)
+
+	for k, v := range topic_offsets {
+		res[k] = v.lastCommittedOffset
+	}
+	return res, nil
+}
+
 func (zom *zookeeperOffsetManager) InitializePartition(topic string, partition int32) (int64, error) {
 	zom.l.Lock()
 	defer zom.l.Unlock()
 
 	if zom.offsets[topic] == nil {
-		zom.offsets[topic] = make(topicOffsets)
+		zom.offsets[topic] = make(TopicOffsets)
 	}
 
 	nextOffset, err := zom.cg.group.FetchOffset(topic, partition)
@@ -114,7 +131,7 @@ func (zom *zookeeperOffsetManager) InitializePartition(topic string, partition i
 		return 0, err
 	}
 
-	zom.offsets[topic][partition] = &partitionOffsetTracker{
+	zom.offsets[topic][partition] = &PartitionOffsetTracker{
 		highestProcessedOffset: nextOffset - 1,
 		lastCommittedOffset:    nextOffset - 1,
 		done:                   make(chan struct{}),
@@ -203,7 +220,7 @@ func (zom *zookeeperOffsetManager) commitOffsets() error {
 	return returnErr
 }
 
-func (zom *zookeeperOffsetManager) commitOffset(topic string, partition int32, tracker *partitionOffsetTracker) error {
+func (zom *zookeeperOffsetManager) commitOffset(topic string, partition int32, tracker *PartitionOffsetTracker) error {
 	err := tracker.commit(func(offset int64) error {
 		return zom.cg.group.CommitOffset(topic, partition, offset+1)
 	})
@@ -219,7 +236,7 @@ func (zom *zookeeperOffsetManager) commitOffset(topic string, partition int32, t
 
 // MarkAsProcessed marks the provided offset as highest processed offset if
 // it's higehr than any previous offset it has received.
-func (pot *partitionOffsetTracker) markAsProcessed(offset int64) bool {
+func (pot *PartitionOffsetTracker) markAsProcessed(offset int64) bool {
 	pot.l.Lock()
 	defer pot.l.Unlock()
 	if offset > pot.highestProcessedOffset {
@@ -235,7 +252,7 @@ func (pot *partitionOffsetTracker) markAsProcessed(offset int64) bool {
 
 // Commit calls a committer function if the highest processed offset is out
 // of sync with the last committed offset.
-func (pot *partitionOffsetTracker) commit(committer offsetCommitter) error {
+func (pot *PartitionOffsetTracker) commit(committer offsetCommitter) error {
 	pot.l.Lock()
 	defer pot.l.Unlock()
 
@@ -250,7 +267,7 @@ func (pot *partitionOffsetTracker) commit(committer offsetCommitter) error {
 	}
 }
 
-func (pot *partitionOffsetTracker) waitForOffset(offset int64, timeout time.Duration) bool {
+func (pot *PartitionOffsetTracker) waitForOffset(offset int64, timeout time.Duration) bool {
 	pot.l.Lock()
 	if offset > pot.highestProcessedOffset {
 		pot.waitingForOffset = offset
