@@ -181,6 +181,7 @@ func (this *Worker) Closed() bool {
 }
 
 func (this *Worker) Close() {
+	fmt.Println("MZ!!!!!!!!!!!!!!", this.Consumer)
 	if err := this.Consumer.Close(); err != nil {
 		glog.Errorln("Error closing consumers", err)
 	}

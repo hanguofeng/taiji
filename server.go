@@ -113,7 +113,7 @@ func (this *Server) Run() error {
 
 func (this *Server) Find(topic, group string) (*Manager, error) {
 	for _, mgr := range this.managers {
-		if mgr.Topic == topic || mgr.Group == group {
+		if mgr.Topic == topic && mgr.Group == group {
 			return mgr, nil
 		}
 	}
