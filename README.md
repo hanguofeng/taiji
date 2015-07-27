@@ -1,5 +1,7 @@
 # Taiji
 
+[![Build Status](https://travis-ci.org/crask/kafka-pusher.svg?branch=master)](https://travis-ci.org/crask/kafka-pusher)
+
 Taiji is a pusher consumer for kafka.
 
 Taiji can pull message from kafka and push it to more consumer via http post call.
