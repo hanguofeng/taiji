@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	//"net/url"
 	"strings"
 	"time"
 
@@ -169,10 +168,18 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 	if nil == err {
 		defer resp.Body.Close()
 		suc = (resp.StatusCode == 200)
+		if suc == false {
+			rbody, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				rbody = []byte{}
+			}
+			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][http_code:%d][response_body:%s]", retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, resp.StatusCode, rbody)
+		}
 	} else {
-		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][error:%s]", retry_times, msg.Topic, msg.Partition, msg.Offset, err.Error())
+		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][error:%s]", retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, err.Error())
 		suc = false
 	}
+
 	return suc, err
 }
 
@@ -181,7 +188,6 @@ func (this *Worker) Closed() bool {
 }
 
 func (this *Worker) Close() {
-	fmt.Println("MZ!!!!!!!!!!!!!!", this.Consumer)
 	if err := this.Consumer.Close(); err != nil {
 		glog.Errorln("Error closing consumers", err)
 	}
