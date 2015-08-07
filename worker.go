@@ -149,11 +149,16 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 		TimeStamp    int    `json:"TimeStamp"`
 		Data         string `json:"Data"`
 		LogId        string `json:"LogId"`
+		ContentType  string `json:"ContentType"`
 	}
 	var rmsg RMSG
 	json.Unmarshal(msg.Value, &rmsg)
 	req, _ := http.NewRequest("POST", this.Callback.Url, ioutil.NopCloser(strings.NewReader(rmsg.Data)))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
+	if rmsg.ContentType == "" {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
+	} else {
+		req.Header.Set("Content-Type", rmsg.ContentType)
+	}
 	req.Header.Set("User-Agent", "Taiji pusher consumer(go)/v"+VERSION)
 	req.Header.Set("X-Retry-Times", fmt.Sprintf("%d", retry_times))
 	req.Header.Set("X-Kmq-Topic", msg.Topic)
