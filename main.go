@@ -12,11 +12,12 @@ const (
 )
 
 var (
-	configFile string
-	version    bool
-	testMode   bool
-	server     *Server
-	statPort   int
+	configFile     string
+	version        bool
+	testMode       bool
+	server         *Server
+	statPort       int
+	commitInterval int
 )
 
 func init() {
@@ -24,6 +25,7 @@ func init() {
 	flag.BoolVar(&version, "V", false, "show version")
 	flag.BoolVar(&testMode, "t", false, "test config")
 	flag.IntVar(&statPort, "s", -1, "set stat server port")
+	flag.IntVar(&commitInterval, "i", 10, "set stat server port")
 }
 
 func getVersion() string {

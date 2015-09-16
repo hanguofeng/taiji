@@ -47,6 +47,12 @@ func (this *Server) Init(configFile string) error {
 		return err
 	}
 
+	// check env var
+	if commitInterval < 0 {
+		glog.Errorf("[Pusher]Invalid commit interval:%d", commitInterval)
+		return errors.New("Invalid param")
+	}
+
 	// init sarama logger
 	sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
 

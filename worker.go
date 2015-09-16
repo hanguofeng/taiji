@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -50,7 +51,13 @@ func (this *Worker) Init(config *CallbackItemConfig) error {
 
 	cgConfig := consumergroup.NewConfig()
 	cgConfig.Offsets.ProcessingTimeout = 10 * time.Second
+	cgConfig.Offsets.CommitInterval = time.Duration(commitInterval) * time.Second
 	cgConfig.Offsets.Initial = sarama.OffsetNewest
+
+	// Random Sleeping to avoid burst commit onto ZK.
+	r := rand.Intn(commitInterval)
+	time.Sleep(time.Duration(r))
+
 	if len(this.ZkPath) > 0 {
 		cgConfig.Zookeeper.Chroot = this.ZkPath
 	}
@@ -131,7 +138,7 @@ func (this *Worker) Work() {
 
 		offsets[message.Topic][message.Partition] = message.Offset
 		consumer.CommitUpto(message)
-		glog.Infof("commited message,[topic:%s][partition:%d][offset:%d]", msg.Topic, msg.Partition, msg.Offset)
+		glog.Infof("commited message,[topic:%s][partition:%d][offset:%d][url:%s]", msg.Topic, msg.Partition, msg.Offset, this.Callback.Url)
 
 	}
 
