@@ -185,10 +185,12 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 			if err != nil {
 				rbody = []byte{}
 			}
-			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][http_code:%d][response_body:%s]", retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, resp.StatusCode, rbody)
+			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][response_body:%s]",
+				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, rbody)
 		}
 	} else {
-		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][error:%s]", retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, err.Error())
+		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][error:%s]",
+			retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, err.Error())
 		suc = false
 	}
 
