@@ -187,15 +187,15 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 			if err != nil {
 				rbody = []byte{}
 			}
-			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][cost:%v][response_body:%s]",
-				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, terpc.Sub(tsrpc), rbody)
+			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][cost:%vms][response_body:%s]",
+				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rbody)
 		}
 	} else {
-		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][error:%s][cost:%v]",
-			retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, err.Error(), terpc.Sub(tsrpc))
+		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][error:%s][cost:%vms]",
+			retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, err.Error(), fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000))
 		suc = false
 	}
-	glog.V(2).Infof("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d][cost:%v]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset, terpc.Sub(tsrpc))
+	glog.V(2).Infof("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d][cost:%vms]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000))
 
 	return suc, err
 }
