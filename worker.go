@@ -85,6 +85,7 @@ func (this *Worker) getGroupName() string {
 }
 
 func (this *Worker) Work() {
+	var tsrpc, terpc time.Time
 
 	consumer := this.Consumer
 
@@ -112,6 +113,7 @@ func (this *Worker) Work() {
 
 		deliverySuccessed := false
 		retry_times := 0
+		tsrpc = time.Now() 
 		for {
 			for !deliverySuccessed && retry_times < this.Callback.RetryTimes {
 				deliverySuccessed, _ = this.delivery(msg, retry_times)
@@ -135,10 +137,11 @@ func (this *Worker) Work() {
 				retry_times = 0
 			}
 		}
+		terpc = time.Now() 
 
 		offsets[message.Topic][message.Partition] = message.Offset
 		consumer.CommitUpto(message)
-		glog.Infof("commited message,[topic:%s][partition:%d][offset:%d][url:%s]", msg.Topic, msg.Partition, msg.Offset, this.Callback.Url)
+		glog.Infof("commited message,[topic:%s][partition:%d][offset:%d][url:%s][cost:%vms]", msg.Topic, msg.Partition, msg.Offset, this.Callback.Url, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000))
 
 	}
 
