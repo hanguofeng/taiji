@@ -145,8 +145,8 @@ func (this *Worker) Work() {
 }
 
 func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error) {
-	glog.V(2).Infof("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset)
-
+	var tsrpc, terpc time.Time
+	
 	client := &http.Client{}
 	client.Timeout = this.Callback.Timeout
 
@@ -175,7 +175,9 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 	req.Header.Set("X-Kmq-Logid", fmt.Sprintf("%s", rmsg.LogId))
 	req.Header.Set("Meilishuo", "uid:0;ip:0.0.0.0;v:0;master:0")
 	req.Header.Set("X-Kmq-Timestamp", fmt.Sprintf("%d", rmsg.TimeStamp))
+	tsrpc = time.Now() 
 	resp, err := client.Do(req)
+	terpc = time.Now() 
 	suc := true
 	if nil == err {
 		defer resp.Body.Close()
@@ -185,14 +187,15 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 			if err != nil {
 				rbody = []byte{}
 			}
-			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][response_body:%s]",
-				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, rbody)
+			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][cost:%v][response_body:%s]",
+				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, terpc.Sub(tsrpc), rbody)
 		}
 	} else {
-		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][error:%s]",
-			retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, err.Error())
+		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][error:%s][cost:%v]",
+			retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, err.Error(), terpc.Sub(tsrpc))
 		suc = false
 	}
+	glog.V(2).Infof("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d][cost:%v]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset, terpc.Sub(tsrpc))
 
 	return suc, err
 }
