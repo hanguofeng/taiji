@@ -22,6 +22,8 @@ type Worker struct {
 	Zookeeper []string
 	ZkPath    string
 	Consumer  *consumergroup.ConsumerGroup
+    Serializer  string
+    ContentType string
 }
 
 type WorkerCallback struct {
@@ -48,6 +50,8 @@ func (this *Worker) Init(config *CallbackItemConfig) error {
 	this.Zookeeper = config.Zookeepers
 	this.ZkPath = config.ZkPath
 	this.Consumer = nil
+	this.Serializer = config.Serializer
+	this.ContentType = config.ContentType
 
 	cgConfig := consumergroup.NewConfig()
 	cgConfig.Offsets.ProcessingTimeout = 10 * time.Second
@@ -162,13 +166,30 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 		ContentType  string `json:"ContentType"`
 	}
 	var rmsg RMSG
-	json.Unmarshal(msg.Value, &rmsg)
-	req, _ := http.NewRequest("POST", this.Callback.Url, ioutil.NopCloser(strings.NewReader(rmsg.Data)))
-	if rmsg.ContentType == "" {
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
-	} else {
-		req.Header.Set("Content-Type", rmsg.ContentType)
+
+	switch this.Serializer {
+	case "":
+	    fallthrough
+	case "raw":
+	    rmsg.Data = string(msg.Value)
+	case "json":
+	default:
+	    json.Unmarshal(msg.Value, &rmsg)
 	}
+	
+	switch this.ContentType {
+	case "":
+	    fallthrough
+	case "form":
+	    rmsg.ContentType = "application/x-www-form-urlencoded"
+	case "json":
+	    rmsg.ContentType = "application/json"
+	default:
+	    rmsg.ContentType = this.ContentType
+	}
+
+	req, _ := http.NewRequest("POST", this.Callback.Url, ioutil.NopCloser(strings.NewReader(rmsg.Data)))
+	req.Header.Set("Content-Type", rmsg.ContentType)
 	req.Header.Set("User-Agent", "Taiji pusher consumer(go)/v"+VERSION)
 	req.Header.Set("X-Retry-Times", fmt.Sprintf("%d", retry_times))
 	req.Header.Set("X-Kmq-Topic", msg.Topic)
@@ -176,8 +197,8 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 	req.Header.Set("X-Kmq-Partition-Key", rmsg.PartitionKey)
 	req.Header.Set("X-Kmq-Offset", fmt.Sprintf("%d", msg.Offset))
 	req.Header.Set("X-Kmq-Logid", fmt.Sprintf("%s", rmsg.LogId))
-	req.Header.Set("Meilishuo", "uid:0;ip:0.0.0.0;v:0;master:0")
 	req.Header.Set("X-Kmq-Timestamp", fmt.Sprintf("%d", rmsg.TimeStamp))
+	req.Header.Set("Meilishuo", "uid:0;ip:0.0.0.0;v:0;master:0")
 	tsrpc = time.Now() 
 	resp, err := client.Do(req)
 	terpc = time.Now() 
