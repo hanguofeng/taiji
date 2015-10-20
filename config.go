@@ -28,7 +28,7 @@ type CallbackItemConfig struct {
 	Topics         []string      `json:"topics"`
 	Zookeepers     []string      `json:"zookeepers"`
 	ZkPath         string        `json:"zk_path"`
-	Serializer     string        `json:"Serializer"`
+	Serializer     string        `json:"serializer"`
 	ContentType    string        `json:"content_type"`
 }
 

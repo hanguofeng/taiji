@@ -173,20 +173,16 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 	case "raw":
 	    rmsg.Data = string(msg.Value)
 	case "json":
+		fallthrough
 	default:
 	    json.Unmarshal(msg.Value, &rmsg)
 	}
 	
-	switch this.ContentType {
-	case "":
-	    fallthrough
-	case "form":
-	    rmsg.ContentType = "application/x-www-form-urlencoded"
-	case "json":
-	    rmsg.ContentType = "application/json"
-	default:
-	    rmsg.ContentType = this.ContentType
-	}
+	if this.ContentType != "" {
+        rmsg.ContentType = this.ContentType
+    } else if rmsg.ContentType == "" {
+        rmsg.ContentType = "application/x-www-form-urlencoded"
+    }
 
 	req, _ := http.NewRequest("POST", this.Callback.Url, ioutil.NopCloser(strings.NewReader(rmsg.Data)))
 	req.Header.Set("Content-Type", rmsg.ContentType)
