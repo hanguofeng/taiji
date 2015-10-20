@@ -26,6 +26,40 @@ func HttpStatConsumerAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func HttpStatWorkerAction(w http.ResponseWriter, r *http.Request) {
+	type OffsetData struct {
+		UUID   string
+		Offset int64
+	}
+	pusherDataMap := map[string]map[string]map[int32]OffsetData{}
+	for _, mgr := range server.managers {
+		for _, worker := range mgr.workers {
+			offset, err := worker.Consumer.OffsetManager().Offsets(worker.Topics[0])
+			if err != nil {
+				continue
+			}
+
+			for k, v := range offset {
+				g, ok := pusherDataMap[worker.Callback.Url]
+				if !ok {
+					g = map[string]map[int32]OffsetData{}
+					pusherDataMap[worker.Callback.Url] = g
+				}
+				t, ok := g[worker.Topics[0]]
+				if !ok {
+					t = map[int32]OffsetData{}
+					g[worker.Topics[0]] = t
+				}
+				value, ok := t[k]
+				if !ok {
+					t[k] = OffsetData{worker.Consumer.Instance().ID, v}
+				} else {
+					if v > value.Offset {
+						t[k] = OffsetData{worker.Consumer.Instance().ID, v}
+					}
+				}
+			}
+		}
+	}
 	type workerStat struct {
 		Topic     string
 		Url       string
@@ -33,20 +67,17 @@ func HttpStatWorkerAction(w http.ResponseWriter, r *http.Request) {
 		UUID      string
 		Offset    int64
 	}
+
 	var res []workerStat
-	for _, mgr := range server.managers {
-		for _, worker := range mgr.workers {
-			offset, err := worker.Consumer.OffsetManager().Offsets(worker.Topics[0])
-			if err != nil {
-				continue
-			}
-			for k, v := range offset {
+	for gUrl, group := range pusherDataMap {
+		for topicKey, topic := range group {
+			for partitionId, part := range topic {
 				res = append(res, workerStat{
-					Topic:     worker.Topics[0],
-					Url:       worker.Callback.Url,
-					Partition: k,
-					UUID:      worker.Consumer.Instance().ID,
-					Offset:    v,
+					Topic:     topicKey,
+					Url:       gUrl,
+					Partition: partitionId,
+					UUID:      part.UUID,
+					Offset:    part.Offset,
 				})
 			}
 		}
