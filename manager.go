@@ -40,7 +40,7 @@ func (this *Manager) Init(config *CallbackItemConfig) error {
 
 		this.workers = append(this.workers, worker)
 	}
-
+	this.Supervise()
 	glog.V(1).Infoln("[Pusher]Init manager success. %v", config)
 	return nil
 }
