@@ -1,6 +1,7 @@
 package sarama
 
 import (
+	"errors"
 	"log"
 	"os"
 	"os/signal"
@@ -31,20 +32,65 @@ func closeProducer(t *testing.T, p AsyncProducer) {
 	wg.Wait()
 }
 
-func expectSuccesses(t *testing.T, p AsyncProducer, successes int) {
-	for i := 0; i < successes; i++ {
+func expectResults(t *testing.T, p AsyncProducer, successes, errors int) {
+	expect := successes + errors
+	for expect > 0 {
 		select {
 		case msg := <-p.Errors():
-			t.Error(msg.Err)
 			if msg.Msg.flags != 0 {
 				t.Error("Message had flags set")
+			}
+			errors--
+			expect--
+			if errors < 0 {
+				t.Error(msg.Err)
 			}
 		case msg := <-p.Successes():
 			if msg.flags != 0 {
 				t.Error("Message had flags set")
 			}
+			successes--
+			expect--
+			if successes < 0 {
+				t.Error("Too many successes")
+			}
 		}
 	}
+	if successes != 0 || errors != 0 {
+		t.Error("Unexpected successes", successes, "or errors", errors)
+	}
+}
+
+type testPartitioner chan *int32
+
+func (p testPartitioner) Partition(msg *ProducerMessage, numPartitions int32) (int32, error) {
+	part := <-p
+	if part == nil {
+		return 0, errors.New("BOOM")
+	}
+
+	return *part, nil
+}
+
+func (p testPartitioner) RequiresConsistency() bool {
+	return true
+}
+
+func (p testPartitioner) feed(partition int32) {
+	p <- &partition
+}
+
+type flakyEncoder bool
+
+func (f flakyEncoder) Length() int {
+	return len(TestMessage)
+}
+
+func (f flakyEncoder) Encode() ([]byte, error) {
+	if !bool(f) {
+		return nil, errors.New("flaky encoding error")
+	}
+	return []byte(TestMessage), nil
 }
 
 func TestAsyncProducer(t *testing.T) {
@@ -120,7 +166,7 @@ func TestAsyncProducerMultipleFlushes(t *testing.T) {
 		for i := 0; i < 5; i++ {
 			producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: nil, Value: StringEncoder(TestMessage)}
 		}
-		expectSuccesses(t, producer, 5)
+		expectResults(t, producer, 5, 0)
 	}
 
 	closeProducer(t, producer)
@@ -160,11 +206,53 @@ func TestAsyncProducerMultipleBrokers(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: nil, Value: StringEncoder(TestMessage)}
 	}
-	expectSuccesses(t, producer, 10)
+	expectResults(t, producer, 10, 0)
 
 	closeProducer(t, producer)
 	leader1.Close()
 	leader0.Close()
+	seedBroker.Close()
+}
+
+func TestAsyncProducerCustomPartitioner(t *testing.T) {
+	seedBroker := newMockBroker(t, 1)
+	leader := newMockBroker(t, 2)
+
+	metadataResponse := new(MetadataResponse)
+	metadataResponse.AddBroker(leader.Addr(), leader.BrokerID())
+	metadataResponse.AddTopicPartition("my_topic", 0, leader.BrokerID(), nil, nil, ErrNoError)
+	seedBroker.Returns(metadataResponse)
+
+	prodResponse := new(ProduceResponse)
+	prodResponse.AddTopicPartition("my_topic", 0, ErrNoError)
+	leader.Returns(prodResponse)
+
+	config := NewConfig()
+	config.Producer.Flush.Messages = 2
+	config.Producer.Return.Successes = true
+	config.Producer.Partitioner = func(topic string) Partitioner {
+		p := make(testPartitioner)
+		go func() {
+			p.feed(0)
+			p <- nil
+			p <- nil
+			p <- nil
+			p.feed(0)
+		}()
+		return p
+	}
+	producer, err := NewAsyncProducer([]string{seedBroker.Addr()}, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 5; i++ {
+		producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: nil, Value: StringEncoder(TestMessage)}
+	}
+	expectResults(t, producer, 2, 3)
+
+	closeProducer(t, producer)
+	leader.Close()
 	seedBroker.Close()
 }
 
@@ -203,20 +291,59 @@ func TestAsyncProducerFailureRetry(t *testing.T) {
 	prodSuccess := new(ProduceResponse)
 	prodSuccess.AddTopicPartition("my_topic", 0, ErrNoError)
 	leader2.Returns(prodSuccess)
-	expectSuccesses(t, producer, 10)
+	expectResults(t, producer, 10, 0)
 	leader1.Close()
 
 	for i := 0; i < 10; i++ {
 		producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: nil, Value: StringEncoder(TestMessage)}
 	}
 	leader2.Returns(prodSuccess)
-	expectSuccesses(t, producer, 10)
+	expectResults(t, producer, 10, 0)
 
 	leader2.Close()
 	closeProducer(t, producer)
 }
 
+func TestAsyncProducerEncoderFailures(t *testing.T) {
+	seedBroker := newMockBroker(t, 1)
+	leader := newMockBroker(t, 2)
+
+	metadataResponse := new(MetadataResponse)
+	metadataResponse.AddBroker(leader.Addr(), leader.BrokerID())
+	metadataResponse.AddTopicPartition("my_topic", 0, leader.BrokerID(), nil, nil, ErrNoError)
+	seedBroker.Returns(metadataResponse)
+
+	prodSuccess := new(ProduceResponse)
+	prodSuccess.AddTopicPartition("my_topic", 0, ErrNoError)
+	leader.Returns(prodSuccess)
+	leader.Returns(prodSuccess)
+	leader.Returns(prodSuccess)
+
+	config := NewConfig()
+	config.Producer.Flush.Messages = 3
+	config.Producer.Return.Successes = true
+	config.Producer.Partitioner = NewManualPartitioner
+	producer, err := NewAsyncProducer([]string{seedBroker.Addr()}, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for flush := 0; flush < 3; flush++ {
+		producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: flakyEncoder(true), Value: flakyEncoder(false)}
+		producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: flakyEncoder(true), Value: flakyEncoder(true)}
+		producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: flakyEncoder(false), Value: flakyEncoder(true)}
+		expectResults(t, producer, 1, 2)
+	}
+
+	closeProducer(t, producer)
+	leader.Close()
+	seedBroker.Close()
+}
+
+// If a Kafka broker becomes unavailable and then returns back in service, then
+// producer reconnects to it and continues sending messages.
 func TestAsyncProducerBrokerBounce(t *testing.T) {
+	// Given
 	seedBroker := newMockBroker(t, 1)
 	leader := newMockBroker(t, 2)
 	leaderAddr := leader.Addr()
@@ -226,30 +353,34 @@ func TestAsyncProducerBrokerBounce(t *testing.T) {
 	metadataResponse.AddTopicPartition("my_topic", 0, leader.BrokerID(), nil, nil, ErrNoError)
 	seedBroker.Returns(metadataResponse)
 
+	prodSuccess := new(ProduceResponse)
+	prodSuccess.AddTopicPartition("my_topic", 0, ErrNoError)
+
 	config := NewConfig()
-	config.Producer.Flush.Messages = 10
+	config.Producer.Flush.Messages = 1
 	config.Producer.Return.Successes = true
 	config.Producer.Retry.Backoff = 0
 	producer, err := NewAsyncProducer([]string{seedBroker.Addr()}, config)
 	if err != nil {
 		t.Fatal(err)
 	}
+	producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: nil, Value: StringEncoder(TestMessage)}
+	leader.Returns(prodSuccess)
+	expectResults(t, producer, 1, 0)
 
-	for i := 0; i < 10; i++ {
-		producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: nil, Value: StringEncoder(TestMessage)}
-	}
+	// When: a broker connection gets reset by a broker (network glitch, restart, you name it).
 	leader.Close()                               // producer should get EOF
 	leader = newMockBrokerAddr(t, 2, leaderAddr) // start it up again right away for giggles
 	seedBroker.Returns(metadataResponse)         // tell it to go to broker 2 again
 
-	prodSuccess := new(ProduceResponse)
-	prodSuccess.AddTopicPartition("my_topic", 0, ErrNoError)
+	// Then: a produced message goes through the new broker connection.
+	producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: nil, Value: StringEncoder(TestMessage)}
 	leader.Returns(prodSuccess)
-	expectSuccesses(t, producer, 10)
-	seedBroker.Close()
-	leader.Close()
+	expectResults(t, producer, 1, 0)
 
 	closeProducer(t, producer)
+	seedBroker.Close()
+	leader.Close()
 }
 
 func TestAsyncProducerBrokerBounceWithStaleMetadata(t *testing.T) {
@@ -288,7 +419,7 @@ func TestAsyncProducerBrokerBounceWithStaleMetadata(t *testing.T) {
 	prodSuccess := new(ProduceResponse)
 	prodSuccess.AddTopicPartition("my_topic", 0, ErrNoError)
 	leader2.Returns(prodSuccess)
-	expectSuccesses(t, producer, 10)
+	expectResults(t, producer, 10, 0)
 	seedBroker.Close()
 	leader2.Close()
 
@@ -336,13 +467,13 @@ func TestAsyncProducerMultipleRetries(t *testing.T) {
 	prodSuccess := new(ProduceResponse)
 	prodSuccess.AddTopicPartition("my_topic", 0, ErrNoError)
 	leader2.Returns(prodSuccess)
-	expectSuccesses(t, producer, 10)
+	expectResults(t, producer, 10, 0)
 
 	for i := 0; i < 10; i++ {
 		producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: nil, Value: StringEncoder(TestMessage)}
 	}
 	leader2.Returns(prodSuccess)
-	expectSuccesses(t, producer, 10)
+	expectResults(t, producer, 10, 0)
 
 	seedBroker.Close()
 	leader1.Close()
@@ -400,7 +531,7 @@ func TestAsyncProducerOutOfRetries(t *testing.T) {
 	prodSuccess.AddTopicPartition("my_topic", 0, ErrNoError)
 	leader.Returns(prodSuccess)
 
-	expectSuccesses(t, producer, 10)
+	expectResults(t, producer, 10, 0)
 
 	leader.Close()
 	seedBroker.Close()
@@ -433,14 +564,14 @@ func TestAsyncProducerRetryWithReferenceOpen(t *testing.T) {
 	prodSuccess := new(ProduceResponse)
 	prodSuccess.AddTopicPartition("my_topic", 0, ErrNoError)
 	leader.Returns(prodSuccess)
-	expectSuccesses(t, producer, 1)
+	expectResults(t, producer, 1, 0)
 
 	// prime partition 1
 	producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: nil, Value: StringEncoder(TestMessage)}
 	prodSuccess = new(ProduceResponse)
 	prodSuccess.AddTopicPartition("my_topic", 1, ErrNoError)
 	leader.Returns(prodSuccess)
-	expectSuccesses(t, producer, 1)
+	expectResults(t, producer, 1, 0)
 
 	// reboot the broker (the producer will get EOF on its existing connection)
 	leader.Close()
@@ -456,7 +587,7 @@ func TestAsyncProducerRetryWithReferenceOpen(t *testing.T) {
 	prodSuccess = new(ProduceResponse)
 	prodSuccess.AddTopicPartition("my_topic", 0, ErrNoError)
 	leader.Returns(prodSuccess)
-	expectSuccesses(t, producer, 1)
+	expectResults(t, producer, 1, 0)
 
 	// shutdown
 	closeProducer(t, producer)
@@ -493,7 +624,7 @@ func TestAsyncProducerFlusherRetryCondition(t *testing.T) {
 		prodSuccess := new(ProduceResponse)
 		prodSuccess.AddTopicPartition("my_topic", p, ErrNoError)
 		leader.Returns(prodSuccess)
-		expectSuccesses(t, producer, 5)
+		expectResults(t, producer, 5, 0)
 	}
 
 	// send more messages on partition 0
@@ -504,21 +635,24 @@ func TestAsyncProducerFlusherRetryCondition(t *testing.T) {
 	prodNotLeader.AddTopicPartition("my_topic", 0, ErrNotLeaderForPartition)
 	leader.Returns(prodNotLeader)
 
+	time.Sleep(50 * time.Millisecond)
+
+	leader.SetHandlerByMap(map[string]MockResponse{
+		"ProduceRequest": newMockProduceResponse(t).
+			SetError("my_topic", 0, ErrNoError),
+	})
+
 	// tell partition 0 to go to that broker again
 	seedBroker.Returns(metadataResponse)
 
 	// succeed this time
-	prodSuccess := new(ProduceResponse)
-	prodSuccess.AddTopicPartition("my_topic", 0, ErrNoError)
-	leader.Returns(prodSuccess)
-	expectSuccesses(t, producer, 5)
+	expectResults(t, producer, 5, 0)
 
 	// put five more through
 	for i := 0; i < 5; i++ {
 		producer.Input() <- &ProducerMessage{Topic: "my_topic", Key: nil, Value: StringEncoder(TestMessage), Partition: 0}
 	}
-	leader.Returns(prodSuccess)
-	expectSuccesses(t, producer, 5)
+	expectResults(t, producer, 5, 0)
 
 	// shutdown
 	closeProducer(t, producer)
@@ -564,7 +698,7 @@ func TestAsyncProducerRetryShutdown(t *testing.T) {
 	prodSuccess := new(ProduceResponse)
 	prodSuccess.AddTopicPartition("my_topic", 0, ErrNoError)
 	leader.Returns(prodSuccess)
-	expectSuccesses(t, producer, 10)
+	expectResults(t, producer, 10, 0)
 
 	seedBroker.Close()
 	leader.Close()
