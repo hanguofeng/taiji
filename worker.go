@@ -223,7 +223,7 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 			}
 			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][cost:%vms][response_body:%s]",
 				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rbody)
-		} else {
+		} else if this.Serializer == "json" {
 			this.CommitNewTracker(&rmsg, msg)
 		}
 	} else {
