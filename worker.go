@@ -17,13 +17,34 @@ import (
 )
 
 type Worker struct {
-	Callback  *WorkerCallback
-	Topics    []string
-	Zookeeper []string
-	ZkPath    string
-	Consumer  *consumergroup.ConsumerGroup
-    Serializer  string
-    ContentType string
+	Callback    *WorkerCallback
+	Topics      []string
+	Zookeeper   []string
+	ZkPath      string
+	Consumer    *consumergroup.ConsumerGroup
+	Serializer  string
+	ContentType string
+	Tracker     OffsetMap
+}
+
+type (
+	OffsetMap map[string]*TrackerData
+)
+
+type TrackerData struct {
+	LastRecordOpTime int64
+	CurrRecordOpTime int64
+	LogId            string
+	Offset           int64
+}
+
+type RMSG struct {
+	Topic        string `json:"Topic"`
+	PartitionKey string `json:"PartitionKey"`
+	TimeStamp    int64  `json:"TimeStamp"`
+	Data         string `json:"Data"`
+	LogId        string `json:"LogId"`
+	ContentType  string `json:"ContentType"`
 }
 
 type WorkerCallback struct {
@@ -52,6 +73,7 @@ func (this *Worker) Init(config *CallbackItemConfig) error {
 	this.Consumer = nil
 	this.Serializer = config.Serializer
 	this.ContentType = config.ContentType
+	this.Tracker = make(OffsetMap)
 
 	cgConfig := consumergroup.NewConfig()
 	cgConfig.Offsets.ProcessingTimeout = 10 * time.Second
@@ -117,7 +139,7 @@ func (this *Worker) Work() {
 
 		deliverySuccessed := false
 		retry_times := 0
-		tsrpc = time.Now() 
+		tsrpc = time.Now()
 		for {
 			for !deliverySuccessed && retry_times < this.Callback.RetryTimes {
 				deliverySuccessed, _ = this.delivery(msg, retry_times)
@@ -141,7 +163,7 @@ func (this *Worker) Work() {
 				retry_times = 0
 			}
 		}
-		terpc = time.Now() 
+		terpc = time.Now()
 
 		offsets[message.Topic][message.Partition] = message.Offset
 		consumer.CommitUpto(message)
@@ -153,36 +175,28 @@ func (this *Worker) Work() {
 
 func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error) {
 	var tsrpc, terpc time.Time
-	
+
 	client := &http.Client{}
 	client.Timeout = this.Callback.Timeout
 
-	type RMSG struct {
-		Topic        string `json:"Topic"`
-		PartitionKey string `json:"PartitionKey"`
-		TimeStamp    int    `json:"TimeStamp"`
-		Data         string `json:"Data"`
-		LogId        string `json:"LogId"`
-		ContentType  string `json:"ContentType"`
-	}
 	var rmsg RMSG
 
 	switch this.Serializer {
 	case "":
-	    fallthrough
+		fallthrough
 	case "raw":
-	    rmsg.Data = string(msg.Value)
+		rmsg.Data = string(msg.Value)
 	case "json":
 		fallthrough
 	default:
-	    json.Unmarshal(msg.Value, &rmsg)
+		json.Unmarshal(msg.Value, &rmsg)
 	}
-	
+
 	if this.ContentType != "" {
-        rmsg.ContentType = this.ContentType
-    } else if rmsg.ContentType == "" {
-        rmsg.ContentType = "application/x-www-form-urlencoded"
-    }
+		rmsg.ContentType = this.ContentType
+	} else if rmsg.ContentType == "" {
+		rmsg.ContentType = "application/x-www-form-urlencoded"
+	}
 
 	req, _ := http.NewRequest("POST", this.Callback.Url, ioutil.NopCloser(strings.NewReader(rmsg.Data)))
 	req.Header.Set("Content-Type", rmsg.ContentType)
@@ -195,9 +209,9 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 	req.Header.Set("X-Kmq-Logid", fmt.Sprintf("%s", rmsg.LogId))
 	req.Header.Set("X-Kmq-Timestamp", fmt.Sprintf("%d", rmsg.TimeStamp))
 	req.Header.Set("Meilishuo", "uid:0;ip:0.0.0.0;v:0;master:0")
-	tsrpc = time.Now() 
+	tsrpc = time.Now()
 	resp, err := client.Do(req)
-	terpc = time.Now() 
+	terpc = time.Now()
 	suc := true
 	if nil == err {
 		defer resp.Body.Close()
@@ -209,6 +223,8 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 			}
 			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][cost:%vms][response_body:%s]",
 				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rbody)
+		} else {
+			this.CommitNewTracker(&rmsg, msg)
 		}
 	} else {
 		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][error:%s][cost:%vms]",
@@ -228,4 +244,30 @@ func (this *Worker) Close() {
 	if err := this.Consumer.Close(); err != nil {
 		glog.Errorln("Error closing consumers", err)
 	}
+}
+
+func (this *Worker) GetWorkerTracker() OffsetMap {
+	return this.Tracker
+}
+
+func (this *Worker) CommitNewTracker(rmsg *RMSG, msg *Msg) (err error) {
+	value, ok := this.Tracker[fmt.Sprintf("%d", msg.Partition)]
+	if !ok {
+		this.Tracker[fmt.Sprintf("%d", msg.Partition)] = &TrackerData{
+			LastRecordOpTime: 0,
+			CurrRecordOpTime: rmsg.TimeStamp,
+			LogId:            rmsg.LogId,
+			Offset:           msg.Offset,
+		}
+		return nil
+	} else if ok && rmsg.TimeStamp >= value.CurrRecordOpTime {
+		this.Tracker[fmt.Sprintf("%d", msg.Partition)] = &TrackerData{
+			LastRecordOpTime: value.CurrRecordOpTime,
+			CurrRecordOpTime: rmsg.TimeStamp,
+			LogId:            rmsg.LogId,
+			Offset:           msg.Offset,
+		}
+		return nil
+	}
+	return nil
 }
