@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log"
@@ -73,6 +75,7 @@ func HttpStatWorkerAction(w http.ResponseWriter, r *http.Request) {
 	type workerStat struct {
 		Topic     string
 		Url       string
+		CgName    string
 		Partition int32
 		UUID      string
 		Offset    int64
@@ -85,6 +88,7 @@ func HttpStatWorkerAction(w http.ResponseWriter, r *http.Request) {
 				res = append(res, workerStat{
 					Topic:     topicKey,
 					Url:       gUrl,
+					CgName:    getGroupName(gUrl),
 					Partition: partitionId,
 					UUID:      part.UUID,
 					Offset:    part.Offset,
@@ -149,7 +153,6 @@ func HttpStatTrackerAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := map[string]map[string]map[string]response{}
-	currentTimeStamp := time.Now().UnixNano() / 1000000
 	for consumergroup, cg := range pusherDataMap {
 		for topic, topicData := range cg {
 			for partition, partitionData := range topicData {
@@ -171,7 +174,7 @@ func HttpStatTrackerAction(w http.ResponseWriter, r *http.Request) {
 						LogId:                partitionData.LogId,
 						Offset:               partitionData.Offset,
 						CurrRecordOpDateTime: time.Unix(partitionData.CurrRecordOpTime/1000, 0).String(),
-						TimeGap:              (currentTimeStamp - partitionData.CurrRecordOpTime) / 1000,
+						TimeGap:              (partitionData.CurrRecordOpTime - partitionData.LastRecordOpTime) / 1000,
 					}
 				}
 			}
@@ -232,4 +235,11 @@ func echo2client(w http.ResponseWriter, r *http.Request, data interface{}, code 
 	}
 
 	return
+}
+
+func getGroupName(url string) string {
+	m := md5.New()
+	m.Write([]byte(url))
+	s := hex.EncodeToString(m.Sum(nil))
+	return s
 }
