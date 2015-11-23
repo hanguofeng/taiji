@@ -1,12 +1,9 @@
 package main
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -18,9 +15,6 @@ import (
 
 type Worker struct {
 	Callback    *WorkerCallback
-	Topics      []string
-	Zookeeper   []string
-	ZkPath      string
 	Consumer    *consumergroup.ConsumerGroup
 	Serializer  string
 	ContentType string
@@ -59,7 +53,7 @@ func NewWorker() *Worker {
 	return &Worker{}
 }
 
-func (this *Worker) Init(config *CallbackItemConfig) error {
+func (this *Worker) Init(config *CallbackItemConfig, coordinator *Coordinator) error {
 	this.Callback = &WorkerCallback{
 		Url:          config.Url,
 		RetryTimes:   config.RetryTimes,
@@ -67,9 +61,6 @@ func (this *Worker) Init(config *CallbackItemConfig) error {
 		BypassFailed: config.BypassFailed,
 		FailedSleep:  config.FailedSleep,
 	}
-	this.Topics = config.Topics
-	this.Zookeeper = config.Zookeepers
-	this.ZkPath = config.ZkPath
 	this.Consumer = nil
 	this.Serializer = config.Serializer
 	this.ContentType = config.ContentType
@@ -80,34 +71,8 @@ func (this *Worker) Init(config *CallbackItemConfig) error {
 	cgConfig.Offsets.CommitInterval = time.Duration(commitInterval) * time.Second
 	cgConfig.Offsets.Initial = sarama.OffsetNewest
 
-	// Random Sleeping to avoid burst commit onto ZK.
-	r := rand.Intn(commitInterval)
-	time.Sleep(time.Duration(r))
-
-	if len(this.ZkPath) > 0 {
-		cgConfig.Zookeeper.Chroot = this.ZkPath
-	}
-
-	cgName := this.getGroupName()
-	consumer, err := consumergroup.JoinConsumerGroup(cgName, this.Topics, this.Zookeeper, cgConfig)
-	if err != nil {
-		glog.Errorf("Failed to join consumer group for url[%v], %v", this.Callback.Url, err.Error())
-		return err
-	} else {
-		glog.V(1).Infof("Join consumer group for url[%s] with UUID[%s]", this.Callback.Url, cgName)
-	}
-
-	glog.Infoln(consumer)
-
-	this.Consumer = consumer
+	this.Consumer = coordinator.GetConsumer()
 	return nil
-}
-
-func (this *Worker) getGroupName() string {
-	m := md5.New()
-	m.Write([]byte(this.Callback.Url))
-	s := hex.EncodeToString(m.Sum(nil))
-	return s
 }
 
 func (this *Worker) Work() {
@@ -130,8 +95,8 @@ func (this *Worker) Work() {
 		}
 
 		eventCount += 1
-		if offsets[message.Topic][message.Partition] != 0 && offsets[message.Topic][message.Partition] != message.Offset-1 {
-			glog.Errorf("Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n", message.Topic, message.Partition, offsets[message.Topic][message.Partition]+1, message.Offset, message.Offset-offsets[message.Topic][message.Partition]+1)
+		if offsets[message.Topic][message.Partition] != 0 && offsets[message.Topic][message.Partition] != message.Offset - 1 {
+			glog.Errorf("Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n", message.Topic, message.Partition, offsets[message.Topic][message.Partition] + 1, message.Offset, message.Offset - offsets[message.Topic][message.Partition] + 1)
 		}
 
 		msg := CreateMsg(message)
@@ -167,7 +132,7 @@ func (this *Worker) Work() {
 
 		offsets[message.Topic][message.Partition] = message.Offset
 		consumer.CommitUpto(message)
-		glog.Infof("commited message,[topic:%s][partition:%d][offset:%d][url:%s][cost:%vms]", msg.Topic, msg.Partition, msg.Offset, this.Callback.Url, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000))
+		glog.Infof("commited message,[topic:%s][partition:%d][offset:%d][url:%s][cost:%vms]", msg.Topic, msg.Partition, msg.Offset, this.Callback.Url, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds() * 1000))
 
 	}
 
@@ -200,7 +165,7 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 
 	req, _ := http.NewRequest("POST", this.Callback.Url, ioutil.NopCloser(strings.NewReader(rmsg.Data)))
 	req.Header.Set("Content-Type", rmsg.ContentType)
-	req.Header.Set("User-Agent", "Taiji pusher consumer(go)/v"+VERSION)
+	req.Header.Set("User-Agent", "Taiji pusher consumer(go)/v" + VERSION)
 	req.Header.Set("X-Retry-Times", fmt.Sprintf("%d", retry_times))
 	req.Header.Set("X-Kmq-Topic", msg.Topic)
 	req.Header.Set("X-Kmq-Partition", fmt.Sprintf("%d", msg.Partition))
@@ -222,16 +187,16 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 				rbody = []byte{}
 			}
 			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][cost:%vms][response_body:%s]",
-				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rbody)
+				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds() * 1000), rbody)
 		} else if this.Serializer == "json" {
 			this.CommitNewTracker(&rmsg, msg)
 		}
 	} else {
 		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][error:%s][cost:%vms]",
-			retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, err.Error(), fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000))
+			retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, err.Error(), fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds() * 1000))
 		suc = false
 	}
-	glog.V(2).Infof("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d][cost:%vms][content-type:%s]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rmsg.ContentType)
+	glog.V(2).Infof("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d][cost:%vms][content-type:%s]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds() * 1000), rmsg.ContentType)
 
 	return suc, err
 }

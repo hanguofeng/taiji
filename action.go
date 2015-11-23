@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log"
@@ -35,38 +33,40 @@ func HttpStatWorkerAction(w http.ResponseWriter, r *http.Request) {
 	}
 	pusherDataMap := map[string]map[string]map[int32]OffsetData{}
 	for _, mgr := range server.managers {
-		for _, worker := range mgr.workers {
-			status := worker.Closed()
-			if status == true {
-				continue
+		// TODO, support multiple topic in one callback item
+		topic := mgr.coordinator.Topics[0]
+		status := mgr.coordinator.Closed()
+		if status == true {
+			continue
+		}
+		offset, err := mgr.coordinator.GetConsumer().OffsetManager().Offsets(topic)
+		if err != nil {
+			continue
+		}
+		instanceID := mgr.coordinator.GetConsumer().Instance().ID
+
+		for k, v := range offset {
+			g, ok := pusherDataMap[mgr.coordinator.CallbackUrl]
+			if !ok {
+				g = map[string]map[int32]OffsetData{}
+				pusherDataMap[mgr.coordinator.CallbackUrl] = g
 			}
-			offset, err := worker.Consumer.OffsetManager().Offsets(worker.Topics[0])
-			if err != nil {
-				continue
+			t, ok := g[topic]
+			if !ok {
+				t = map[int32]OffsetData{}
+				g[topic] = t
 			}
-			for k, v := range offset {
-				g, ok := pusherDataMap[worker.Callback.Url]
-				if !ok {
-					g = map[string]map[int32]OffsetData{}
-					pusherDataMap[worker.Callback.Url] = g
+			value, ok := t[k]
+			if !ok {
+				t[k] = OffsetData{
+					UUID:   instanceID,
+					Offset: v,
 				}
-				t, ok := g[worker.Topics[0]]
-				if !ok {
-					t = map[int32]OffsetData{}
-					g[worker.Topics[0]] = t
-				}
-				value, ok := t[k]
-				if !ok {
+			} else {
+				if v > value.Offset {
 					t[k] = OffsetData{
-						UUID:   worker.Consumer.Instance().ID,
+						UUID:   instanceID,
 						Offset: v,
-					}
-				} else {
-					if v > value.Offset {
-						t[k] = OffsetData{
-							UUID:   worker.Consumer.Instance().ID,
-							Offset: v,
-						}
 					}
 				}
 			}
@@ -104,6 +104,8 @@ func HttpStatWorkerAction(w http.ResponseWriter, r *http.Request) {
 func HttpStatTrackerAction(w http.ResponseWriter, r *http.Request) {
 	pusherDataMap := map[string]map[string]map[string]TrackerData{}
 	for _, mgr := range server.managers {
+		// TODO, support multiple topic in one callback item
+		topic := mgr.coordinator.Topics[0]
 		for _, worker := range mgr.workers {
 			status := worker.Closed()
 			if status == true {
@@ -116,10 +118,10 @@ func HttpStatTrackerAction(w http.ResponseWriter, r *http.Request) {
 					g = map[string]map[string]TrackerData{}
 					pusherDataMap[worker.Callback.Url] = g
 				}
-				t, ok := g[worker.Topics[0]]
+				t, ok := g[topic]
 				if !ok {
 					t = map[string]TrackerData{}
-					g[worker.Topics[0]] = t
+					g[topic] = t
 				}
 				value, ok := t[k]
 				if !ok {
@@ -173,7 +175,7 @@ func HttpStatTrackerAction(w http.ResponseWriter, r *http.Request) {
 						CurrRecordOpTime:     partitionData.CurrRecordOpTime,
 						LogId:                partitionData.LogId,
 						Offset:               partitionData.Offset,
-						CurrRecordOpDateTime: time.Unix(partitionData.CurrRecordOpTime/1000, 0).String(),
+						CurrRecordOpDateTime: time.Unix(partitionData.CurrRecordOpTime / 1000, 0).String(),
 						TimeGap:              (partitionData.CurrRecordOpTime - partitionData.LastRecordOpTime) / 1000,
 					}
 				}
@@ -205,7 +207,7 @@ func HttpAdminSkipAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	worker, err := mgr.Find(i_partition)
+	coordinator, err := mgr.Find(i_partition)
 	if err != nil {
 		echo2client(w, r, "invalid topic/partition", 0)
 		return
@@ -216,8 +218,8 @@ func HttpAdminSkipAction(w http.ResponseWriter, r *http.Request) {
 		Partition: int32(i_partition),
 		Offset:    i_offset,
 	}
-	worker.Consumer.CommitUpto(msg)
-	worker.Close()
+	coordinator.GetConsumer().CommitUpto(msg)
+	coordinator.Close()
 	echo2client(w, r, "", 0)
 }
 
@@ -235,11 +237,4 @@ func echo2client(w http.ResponseWriter, r *http.Request, data interface{}, code 
 	}
 
 	return
-}
-
-func getGroupName(url string) string {
-	m := md5.New()
-	m.Write([]byte(url))
-	s := hex.EncodeToString(m.Sum(nil))
-	return s
 }
