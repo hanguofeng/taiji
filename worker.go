@@ -86,19 +86,7 @@ func (this *Worker) Work() {
 		}
 	}()
 
-	eventCount := 0
-	offsets := make(map[string]map[int32]int64)
-
 	for message := range consumer.Messages() {
-		if offsets[message.Topic] == nil {
-			offsets[message.Topic] = make(map[int32]int64)
-		}
-
-		eventCount += 1
-		if offsets[message.Topic][message.Partition] != 0 && offsets[message.Topic][message.Partition] != message.Offset - 1 {
-			glog.Errorf("Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n", message.Topic, message.Partition, offsets[message.Topic][message.Partition] + 1, message.Offset, message.Offset - offsets[message.Topic][message.Partition] + 1)
-		}
-
 		msg := CreateMsg(message)
 		glog.V(2).Infof("received message,[topic:%s][partition:%d][offset:%d]", msg.Topic, msg.Partition, msg.Offset)
 
@@ -130,7 +118,6 @@ func (this *Worker) Work() {
 		}
 		terpc = time.Now()
 
-		offsets[message.Topic][message.Partition] = message.Offset
 		consumer.CommitUpto(message)
 		glog.Infof("commited message,[topic:%s][partition:%d][offset:%d][url:%s][cost:%vms]", msg.Topic, msg.Partition, msg.Offset, this.Callback.Url, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds() * 1000))
 
