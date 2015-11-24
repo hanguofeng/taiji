@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"net"
+	"net/http"
 )
 
 type Manager struct {
@@ -12,6 +14,7 @@ type Manager struct {
 	Group             string
 	Url               string
 	coordinator       *Coordinator
+	httpTransport     http.RoundTripper
 	workers           []*Worker
 	superviseInterval time.Duration
 	config            *CallbackItemConfig
@@ -30,6 +33,20 @@ func (this *Manager) Init(config *CallbackItemConfig) error {
 	this.Group = getGroupName(this.Url)
 	this.coordinator = NewCoordinator()
 
+	httpConnectionPoolSize := config.ConnectionPoolSize
+	if 0 >= httpConnectionPoolSize {
+		httpConnectionPoolSize = http.DefaultMaxIdleConnsPerHost
+	}
+	this.httpTransport = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		Dial: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout: 10 * time.Second,
+		MaxIdleConnsPerHost: httpConnectionPoolSize,
+	}
+
 	if err := this.coordinator.Init(config); err != nil {
 		glog.Fatalf("Init coordinator for url[%v] failed, %v", config.Url, err.Error())
 		return err
@@ -37,7 +54,7 @@ func (this *Manager) Init(config *CallbackItemConfig) error {
 
 	for i := 0; i < config.WorkerNum; i++ {
 		worker := NewWorker()
-		if err := worker.Init(config, this.coordinator); err != nil {
+		if err := worker.Init(config, this.coordinator, this.httpTransport); err != nil {
 			glog.Fatalf("Init worker for url[%v] failed, %v", config.Url, err.Error())
 			return err
 		}
@@ -74,7 +91,7 @@ func (this *Manager) checkAndRestart() error {
 	if this.coordinator.Closed() {
 		this.coordinator.Init(this.config)
 		for _, worker := range this.workers {
-			worker.Init(this.config, this.coordinator)
+			worker.Init(this.config, this.coordinator, this.httpTransport)
 		}
 		glog.V(1).Info("found coordinator closed, already restarted")
 	}

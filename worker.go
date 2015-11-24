@@ -19,6 +19,7 @@ type Worker struct {
 	Serializer  string
 	ContentType string
 	Tracker     OffsetMap
+	Transport   http.RoundTripper
 }
 
 type (
@@ -53,7 +54,7 @@ func NewWorker() *Worker {
 	return &Worker{}
 }
 
-func (this *Worker) Init(config *CallbackItemConfig, coordinator *Coordinator) error {
+func (this *Worker) Init(config *CallbackItemConfig, coordinator *Coordinator, transport http.RoundTripper) error {
 	this.Callback = &WorkerCallback{
 		Url:          config.Url,
 		RetryTimes:   config.RetryTimes,
@@ -65,6 +66,7 @@ func (this *Worker) Init(config *CallbackItemConfig, coordinator *Coordinator) e
 	this.Serializer = config.Serializer
 	this.ContentType = config.ContentType
 	this.Tracker = make(OffsetMap)
+	this.Transport = transport
 
 	cgConfig := consumergroup.NewConfig()
 	cgConfig.Offsets.ProcessingTimeout = 10 * time.Second
@@ -128,7 +130,7 @@ func (this *Worker) Work() {
 func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error) {
 	var tsrpc, terpc time.Time
 
-	client := &http.Client{}
+	client := &http.Client{Transport: this.Transport}
 	client.Timeout = this.Callback.Timeout
 
 	var rmsg RMSG
