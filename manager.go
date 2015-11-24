@@ -37,7 +37,7 @@ func (this *Manager) Init(config *CallbackItemConfig) error {
 	if 0 >= httpConnectionPoolSize {
 		httpConnectionPoolSize = http.DefaultMaxIdleConnsPerHost
 	}
-	this.httpTransport = &http.Transport{
+	this.httpTransport = &Transport{
 		Proxy: http.ProxyFromEnvironment,
 		Dial: (&net.Dialer{
 			Timeout:   30 * time.Second,
