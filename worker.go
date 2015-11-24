@@ -11,6 +11,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/crask/kafka/consumergroup"
 	"github.com/golang/glog"
+	"io"
 )
 
 type Worker struct {
@@ -177,8 +178,19 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 			}
 			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][cost:%vms][response_body:%s]",
 				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rbody)
-		} else if this.Serializer == "json" {
-			this.CommitNewTracker(&rmsg, msg)
+		} else {
+			if this.Serializer == "json" {
+				this.CommitNewTracker(&rmsg, msg)
+			}
+
+			// consume all data in response body to trigger connection reusing
+			tempBuf := make([]byte, 4096)
+			for {
+				_, e := resp.Body.Read(tempBuf)
+				if e != nil {
+					break
+				}
+			}
 		}
 	} else {
 		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][error:%s][cost:%vms]",
