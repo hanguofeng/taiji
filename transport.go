@@ -521,6 +521,8 @@ func (t *Transport) getConn(req *http.Request, cm connectMethod) (*persistConn, 
 		return pc, nil
 	}
 
+	glog.Infof("Could not find idle conn for request %v", req)
+
 	type dialRes struct {
 		pc  *persistConn
 		err error
@@ -952,11 +954,13 @@ func (pc *persistConn) readLoop() {
 		if hasBody {
 			waitForBodyRead = make(chan bool, 2)
 			resp.Body.(*bodyEOFSignal).earlyCloseFn = func() error {
+				glog.Info("Pushed event to waitForBodyRead channel under earlyCloseFn case")
 				waitForBodyRead <- false
 				return nil
 			}
 			resp.Body.(*bodyEOFSignal).fn = func(err error) error {
 				isEOF := err == io.EOF
+				glog.Infof("Pushed event to waitForBodyRead channel on function called, isEOF[%t]", isEOF)
 				waitForBodyRead <- isEOF
 				if isEOF {
 					<-eofc // see comment at top
@@ -998,6 +1002,7 @@ func (pc *persistConn) readLoop() {
 				pc.t.CancelRequest(rc.req)
 			case bodyEOF := <-waitForBodyRead:
 				pc.t.setReqCanceler(rc.req, nil) // before pc might return to idle pool
+				glog.Infof("Response has body and is alive[%t], sawEOF[%t], bodyEOF[%t]", alive, pc.sawEOF, bodyEOF)
 				alive = alive &&
 					bodyEOF &&
 					!pc.sawEOF &&
@@ -1010,6 +1015,7 @@ func (pc *persistConn) readLoop() {
 				alive = false
 			}
 		} else {
+			glog.Infof("Response has no body and is alive[%t], sawEOF[%t]", alive, pc.sawEOF)
 			alive = alive &&
 				!pc.sawEOF &&
 				pc.wroteRequest() &&
