@@ -1,4 +1,5 @@
 package main
+
 import (
 	"crypto/md5"
 	"encoding/hex"

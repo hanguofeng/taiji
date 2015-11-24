@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Shopify/sarama"
 	"github.com/wvanbergen/kazoo-go"
-	"gopkg.in/Shopify/sarama.v1"
 )
 
 var (
@@ -22,7 +22,8 @@ type Config struct {
 	Offsets struct {
 		Initial           int64         // The initial offset method to use if the consumer has no previously stored offset. Must be either sarama.OffsetOldest (default) or sarama.OffsetNewest.
 		ProcessingTimeout time.Duration // Time to wait for all the offsets for a partition to be processed after stopping to consume from it. Defaults to 1 minute.
-		CommitInterval    time.Duration // The interval between which the prossed offsets are commited.
+		CommitInterval    time.Duration // The interval between which the processed offsets are commited.
+		ResetOffsets      bool          // Resets the offsets for the consumergroup so that it won't resume from where it left off previously.
 	}
 }
 
@@ -118,6 +119,16 @@ func JoinConsumerGroup(name string, topics []string, zookeeper []string, config 
 	}
 
 	group := kz.Consumergroup(name)
+
+	if config.Offsets.ResetOffsets {
+		err = group.ResetOffsets()
+		if err != nil {
+			cg.Logf("FAILED to reset offsets of consumergroup: %s!\n", err)
+			kz.Close()
+			return
+		}
+	}
+
 	instance := group.NewInstance()
 
 	var consumer sarama.Consumer
@@ -343,12 +354,11 @@ func (cg *ConsumerGroup) partitionConsumer(topic string, partition int32, messag
 	default:
 	}
 
-	for maxRetry, i := 5, 0; i < maxRetry; i++ {
+	for maxRetries, tries := 5, 0; tries < maxRetries; tries++ {
 		if err := cg.instance.ClaimPartition(topic, partition); err == nil {
 			break
-		} else if err == kazoo.ErrPartitionClaimedByOther && i+1 < maxRetry {
-			cg.Logf("%s/%d :: FAILED to claim the partition: %s, try to claim again in %d second\n", topic, partition, err, i*5)
-			time.Sleep(i * 5 * time.Second)
+		} else if err == kazoo.ErrPartitionClaimedByOther && tries+1 < maxRetries {
+			time.Sleep(time.Duration(5*tries) * time.Second)
 		} else {
 			cg.Logf("%s/%d :: FAILED to claim the partition: %s\n", topic, partition, err)
 			return
@@ -362,7 +372,7 @@ func (cg *ConsumerGroup) partitionConsumer(topic string, partition int32, messag
 		return
 	}
 
-	if nextOffset > 0 {
+	if nextOffset >= 0 {
 		cg.Logf("%s/%d :: Partition consumer starting at offset %d.\n", topic, partition, nextOffset)
 	} else {
 		nextOffset = cg.config.Offsets.Initial

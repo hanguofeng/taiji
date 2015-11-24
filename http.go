@@ -31,7 +31,7 @@ func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//TODO: handle 404, just for debugging now
-	io.WriteString(w, "My server: " + r.URL.Path)
+	io.WriteString(w, "My server: "+r.URL.Path)
 }
 
 //

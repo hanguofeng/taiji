@@ -1,10 +1,15 @@
 {
 	"ImportPath": "github.com/crask/kafka-pusher",
-	"GoVersion": "go1.5",
+	"GoVersion": "go1.5.1",
 	"Deps": [
 		{
+			"ImportPath": "github.com/Shopify/sarama",
+			"Comment": "v1.6.1",
+			"Rev": "35093741160a61deca1a9b08fb5f508c6cece9c8"
+		},
+		{
 			"ImportPath": "github.com/crask/kafka/consumergroup",
-			"Rev": "b9cbfe21caaf303141c3170f9f170bacca78c9f1"
+			"Rev": "b455cdd9bc1135f44a1d31b27fac6d70adf1f9ef"
 		},
 		{
 			"ImportPath": "github.com/eapache/go-resiliency/breaker",
@@ -35,11 +40,6 @@
 		{
 			"ImportPath": "github.com/wvanbergen/kazoo-go",
 			"Rev": "549793569f2034e3779263fb0d6b16db94186607"
-		},
-		{
-			"ImportPath": "gopkg.in/Shopify/sarama.v1",
-			"Comment": "v1.6.1",
-			"Rev": "35093741160a61deca1a9b08fb5f508c6cece9c8"
 		}
 	]
 }

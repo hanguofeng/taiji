@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	CFG_DEFAULT_TIMEOUT = time.Second
+	CFG_DEFAULT_TIMEOUT      = time.Second
 	CFG_DEFAULT_FAILED_SLEEP = time.Second
-	CFG_MIN_FAILED_SLEEP = time.Second
+	CFG_MIN_FAILED_SLEEP     = time.Second
 )
 
 type CallbackItemConfig struct {
@@ -59,7 +59,7 @@ func loadConfig(configFile string) (*ServiceConfig, error) {
 			glog.Errorf("callback config timeout error(%s),using default.config value:%s", err.Error(), callback.TimeoutStr)
 
 			callback.Timeout = CFG_DEFAULT_TIMEOUT
-			callback.TimeoutStr = fmt.Sprintf("%dms", CFG_DEFAULT_TIMEOUT / time.Millisecond)
+			callback.TimeoutStr = fmt.Sprintf("%dms", CFG_DEFAULT_TIMEOUT/time.Millisecond)
 		}
 
 		callback.FailedSleep, err = time.ParseDuration(callback.FailedSleepStr)
@@ -67,7 +67,7 @@ func loadConfig(configFile string) (*ServiceConfig, error) {
 			glog.Errorf("callback config failed_sleep error(%s),using default.config value:%s", err.Error(), callback.FailedSleepStr)
 
 			callback.FailedSleep = CFG_DEFAULT_FAILED_SLEEP
-			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_DEFAULT_FAILED_SLEEP / time.Millisecond)
+			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_DEFAULT_FAILED_SLEEP/time.Millisecond)
 
 		}
 
@@ -75,7 +75,7 @@ func loadConfig(configFile string) (*ServiceConfig, error) {
 			glog.Errorf("callback config failed_sleep too small,using min.config value:%s,%s", callback.FailedSleep, callback.FailedSleepStr)
 
 			callback.FailedSleep = CFG_MIN_FAILED_SLEEP
-			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_MIN_FAILED_SLEEP / time.Millisecond)
+			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_MIN_FAILED_SLEEP/time.Millisecond)
 
 		}
 

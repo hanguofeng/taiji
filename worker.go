@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Shopify/sarama"
 	"github.com/crask/kafka/consumergroup"
 	"github.com/golang/glog"
-	"gopkg.in/Shopify/sarama.v1"
 )
 
 type Worker struct {
@@ -119,7 +119,7 @@ func (this *Worker) Work() {
 		terpc = time.Now()
 
 		consumer.CommitUpto(message)
-		glog.Infof("commited message,[topic:%s][partition:%d][offset:%d][url:%s][cost:%vms]", msg.Topic, msg.Partition, msg.Offset, this.Callback.Url, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds() * 1000))
+		glog.Infof("commited message,[topic:%s][partition:%d][offset:%d][url:%s][cost:%vms]", msg.Topic, msg.Partition, msg.Offset, this.Callback.Url, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000))
 
 	}
 
@@ -152,7 +152,7 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 
 	req, _ := http.NewRequest("POST", this.Callback.Url, ioutil.NopCloser(strings.NewReader(rmsg.Data)))
 	req.Header.Set("Content-Type", rmsg.ContentType)
-	req.Header.Set("User-Agent", "Taiji pusher consumer(go)/v" + VERSION)
+	req.Header.Set("User-Agent", "Taiji pusher consumer(go)/v"+VERSION)
 	req.Header.Set("X-Retry-Times", fmt.Sprintf("%d", retry_times))
 	req.Header.Set("X-Kmq-Topic", msg.Topic)
 	req.Header.Set("X-Kmq-Partition", fmt.Sprintf("%d", msg.Partition))
@@ -174,16 +174,16 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 				rbody = []byte{}
 			}
 			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][cost:%vms][response_body:%s]",
-				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds() * 1000), rbody)
+				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rbody)
 		} else if this.Serializer == "json" {
 			this.CommitNewTracker(&rmsg, msg)
 		}
 	} else {
 		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][error:%s][cost:%vms]",
-			retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, err.Error(), fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds() * 1000))
+			retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, err.Error(), fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000))
 		suc = false
 	}
-	glog.V(2).Infof("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d][cost:%vms][content-type:%s]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds() * 1000), rmsg.ContentType)
+	glog.V(2).Infof("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d][cost:%vms][content-type:%s]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rmsg.ContentType)
 
 	return suc, err
 }

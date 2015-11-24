@@ -3,6 +3,7 @@
 *.a
 *.so
 kafka-pusher
+kafkapusher
 
 # Folders
 _obj

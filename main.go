@@ -8,16 +8,17 @@ import (
 )
 
 const (
-	VERSION = "1.0.2"
+	VERSION = "1.0.3"
 )
 
 var (
-	configFile string
-	version bool
-	testMode bool
+	configFile     string
+	version        bool
+	testMode       bool
 	server         *Server
-	statPort int
+	statPort       int
 	commitInterval int
+	gitCommit      string
 )
 
 func init() {
@@ -29,7 +30,7 @@ func init() {
 }
 
 func getVersion() string {
-	return VERSION
+	return fmt.Sprintf("%s-%s", VERSION, gitCommit)
 }
 
 func showVersion() {

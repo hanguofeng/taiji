@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"gopkg.in/Shopify/sarama.v1"
+	"github.com/Shopify/sarama"
 )
 
 func HttpStatConsumerAction(w http.ResponseWriter, r *http.Request) {
@@ -175,7 +175,7 @@ func HttpStatTrackerAction(w http.ResponseWriter, r *http.Request) {
 						CurrRecordOpTime:     partitionData.CurrRecordOpTime,
 						LogId:                partitionData.LogId,
 						Offset:               partitionData.Offset,
-						CurrRecordOpDateTime: time.Unix(partitionData.CurrRecordOpTime / 1000, 0).String(),
+						CurrRecordOpDateTime: time.Unix(partitionData.CurrRecordOpTime/1000, 0).String(),
 						TimeGap:              (partitionData.CurrRecordOpTime - partitionData.LastRecordOpTime) / 1000,
 					}
 				}

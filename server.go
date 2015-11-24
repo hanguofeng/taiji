@@ -9,12 +9,12 @@ import (
 	"os/signal"
 	"sync"
 	"time"
-//"path/filepath"
+	//"path/filepath"
 	"runtime"
 	"syscall"
 
+	"github.com/Shopify/sarama"
 	"github.com/golang/glog"
-	"gopkg.in/Shopify/sarama.v1"
 )
 
 type HTTPServer struct {

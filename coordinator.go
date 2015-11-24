@@ -3,9 +3,9 @@ package main
 import (
 	"time"
 
+	"github.com/Shopify/sarama"
 	"github.com/crask/kafka/consumergroup"
 	"github.com/golang/glog"
-	"gopkg.in/Shopify/sarama.v1"
 )
 
 type Coordinator struct {
