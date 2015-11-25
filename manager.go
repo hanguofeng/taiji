@@ -32,19 +32,14 @@ func (this *Manager) Init(config *CallbackItemConfig) error {
 	this.Url = config.Url
 	this.Group = getGroupName(this.Url)
 	this.coordinator = NewCoordinator()
-
-	httpConnectionPoolSize := config.ConnectionPoolSize
-	if 0 >= httpConnectionPoolSize {
-		httpConnectionPoolSize = http.DefaultMaxIdleConnsPerHost
-	}
-	this.httpTransport = &Transport{
+	this.httpTransport = &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		Dial: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
 		}).Dial,
 		TLSHandshakeTimeout: 10 * time.Second,
-		MaxIdleConnsPerHost: httpConnectionPoolSize,
+		MaxIdleConnsPerHost: config.ConnectionPoolSize,
 	}
 
 	if err := this.coordinator.Init(config); err != nil {

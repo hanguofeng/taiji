@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"net/http"
 )
 
 const (
@@ -78,6 +79,10 @@ func loadConfig(configFile string) (*ServiceConfig, error) {
 			callback.FailedSleep = CFG_MIN_FAILED_SLEEP
 			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_MIN_FAILED_SLEEP/time.Millisecond)
 
+		}
+
+		if callback.ConnectionPoolSize <= 0 {
+			callback.ConnectionPoolSize = http.DefaultMaxIdleConnsPerHost
 		}
 
 	}
