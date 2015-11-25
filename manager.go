@@ -90,6 +90,7 @@ func (this *Manager) checkAndRestart() error {
 		}
 		glog.V(1).Info("found coordinator closed, already restarted")
 	}
+	this.Work()
 	return nil
 }
 

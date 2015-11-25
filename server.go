@@ -57,10 +57,11 @@ func (this *Server) Init(configFile string) error {
 	sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
 
 	// init consumer managers
-	for _, callbackConfig := range config.Callbacks {
+	for i, _ := range config.Callbacks {
+		callbackConfig := &config.Callbacks[i]
 		glog.Infoln(callbackConfig)
 		manager := NewManager()
-		if e := manager.Init(&callbackConfig); e != nil {
+		if e := manager.Init(callbackConfig); e != nil {
 			glog.Fatalf("[Pusher]Init manager for url[%s] failed, %s", callbackConfig.Url, e.Error())
 			return e
 		}
