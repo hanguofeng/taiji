@@ -275,21 +275,49 @@ func (cg *ConsumerGroup) topicListConsumer(topics []string) {
 		cg.Logf("Currently registered consumers: %d\n", len(cg.consumers))
 
 		stopper := make(chan struct{})
+		event := make(chan int)
 
-		for _, topic := range topics {
+		for idx, topic := range topics {
 			cg.wg.Add(1)
-			go cg.topicConsumer(topic, cg.messages, cg.errors, stopper)
+			go func(idx int, topic string) {
+				defer func() {
+					event <- idx
+				}()
+				cg.topicConsumer(topic, cg.messages, cg.errors, stopper)
+			}(idx, topic)
 		}
 
-		select {
-		case <-cg.stopper:
-			close(stopper)
-			return
+		leftRespawnCount := len(topics) * 3
 
-		case <-consumerChanges:
-			cg.Logf("Triggering rebalance due to consumer list change\n")
-			close(stopper)
-			cg.wg.Wait()
+	topicConsumerRespawnLoop:
+		for {
+			if leftRespawnCount--; leftRespawnCount <= 0 {
+				cg.Logf("Too many topicConsumer respawn for topics: %v\n", topics)
+				cg.Close()
+			}
+
+			select {
+			case idx := <-event:
+				if leftRespawnCount > 0 {
+					cg.Logf("Try respawn exited topicConsumer: %s\n", topics[idx])
+					cg.wg.Add(1)
+					go func(idx int) {
+						defer func() {
+							event <- idx
+						}()
+						cg.topicConsumer(topics[idx], cg.messages, cg.errors, stopper)
+					}(idx)
+				}
+			case <-cg.stopper:
+				close(stopper)
+				return
+
+			case <-consumerChanges:
+				cg.Logf("Triggering rebalance due to consumer list change\n")
+				close(stopper)
+				cg.wg.Wait()
+				break topicConsumerRespawnLoop
+			}
 		}
 	}
 }
@@ -334,10 +362,43 @@ func (cg *ConsumerGroup) topicConsumer(topic string, messages chan<- *sarama.Con
 
 	// Consume all the assigned partitions
 	var wg sync.WaitGroup
-	for _, pid := range myPartitions {
-
+	partitionStopper := make(chan struct{})
+	event := make(chan int)
+	for idx, pid := range myPartitions {
 		wg.Add(1)
-		go cg.partitionConsumer(topic, pid.ID, messages, errors, &wg, stopper)
+		go func(idx int, pid *kazoo.Partition) {
+			defer func() {
+				event <- idx
+			}()
+			cg.partitionConsumer(topic, pid.ID, messages, errors, &wg, partitionStopper)
+		}(idx, pid)
+	}
+
+	leftRespawnCount := len(myPartitions) * 3
+
+partitionConsumerRespawnLoop:
+	for {
+		if leftRespawnCount--; leftRespawnCount <= 0 {
+			cg.Logf("%s :: Too many partitionConsumer respawn\n", topic)
+			close(partitionStopper)
+			break partitionConsumerRespawnLoop
+		}
+		select {
+		case idx := <-event:
+			if leftRespawnCount > 0 {
+				cg.Logf("%s/%d :: Try respawn exited partitionConsumer\n", topic, myPartitions[idx].ID)
+				wg.Add(1)
+				go func(idx int, pid *kazoo.Partition) {
+					defer func() {
+						event <- idx
+					}()
+					cg.partitionConsumer(topic, pid.ID, messages, errors, &wg, partitionStopper)
+				}(idx, myPartitions[idx])
+			}
+		case <-stopper:
+			close(partitionStopper)
+			break partitionConsumerRespawnLoop
+		}
 	}
 
 	wg.Wait()
