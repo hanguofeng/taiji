@@ -18,19 +18,7 @@ type Worker struct {
 	Consumer    *consumergroup.ConsumerGroup
 	Serializer  string
 	ContentType string
-	Tracker     OffsetMap
 	Transport   http.RoundTripper
-}
-
-type (
-	OffsetMap map[string]*TrackerData
-)
-
-type TrackerData struct {
-	LastRecordOpTime int64
-	CurrRecordOpTime int64
-	LogId            string
-	Offset           int64
 }
 
 type RMSG struct {
@@ -65,7 +53,6 @@ func (this *Worker) Init(config *CallbackItemConfig, coordinator *Coordinator, t
 	this.Consumer = nil
 	this.Serializer = config.Serializer
 	this.ContentType = config.ContentType
-	this.Tracker = make(OffsetMap)
 	this.Transport = transport
 
 	cgConfig := consumergroup.NewConfig()
@@ -178,10 +165,6 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][cost:%vms][response_body:%s]",
 				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rbody)
 		} else {
-			if this.Serializer == "json" {
-				this.CommitNewTracker(&rmsg, msg)
-			}
-
 			// consume all data in response body to enable connection reusing
 			discardBody(resp.Body)
 		}
@@ -203,30 +186,4 @@ func (this *Worker) Close() {
 	if err := this.Consumer.Close(); err != nil {
 		glog.Errorln("Error closing consumers", err)
 	}
-}
-
-func (this *Worker) GetWorkerTracker() OffsetMap {
-	return this.Tracker
-}
-
-func (this *Worker) CommitNewTracker(rmsg *RMSG, msg *Msg) (err error) {
-	value, ok := this.Tracker[fmt.Sprintf("%d", msg.Partition)]
-	if !ok {
-		this.Tracker[fmt.Sprintf("%d", msg.Partition)] = &TrackerData{
-			LastRecordOpTime: 0,
-			CurrRecordOpTime: rmsg.TimeStamp,
-			LogId:            rmsg.LogId,
-			Offset:           msg.Offset,
-		}
-		return nil
-	} else if ok && rmsg.TimeStamp >= value.CurrRecordOpTime {
-		this.Tracker[fmt.Sprintf("%d", msg.Partition)] = &TrackerData{
-			LastRecordOpTime: value.CurrRecordOpTime,
-			CurrRecordOpTime: rmsg.TimeStamp,
-			LogId:            rmsg.LogId,
-			Offset:           msg.Offset,
-		}
-		return nil
-	}
-	return nil
 }
