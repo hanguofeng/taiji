@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"net/http"
 )
 
 const (
@@ -17,19 +18,20 @@ const (
 )
 
 type CallbackItemConfig struct {
-	WorkerNum      int           `json:"worker_num"`
-	Url            string        `json:"url"`
-	RetryTimes     int           `json:"retry_times"`
-	TimeoutStr     string        `json:"timeout"`
-	Timeout        time.Duration `json:"null,omitempty"`
-	BypassFailed   bool          `json:"bypass_failed"`
-	FailedSleepStr string        `json:"failed_sleep"`
-	FailedSleep    time.Duration `json:"null,omitempty"`
-	Topics         []string      `json:"topics"`
-	Zookeepers     []string      `json:"zookeepers"`
-	ZkPath         string        `json:"zk_path"`
-	Serializer     string        `json:"serializer"`
-	ContentType    string        `json:"content_type"`
+	WorkerNum          int           `json:"worker_num"`
+	Url                string        `json:"url"`
+	RetryTimes         int           `json:"retry_times"`
+	TimeoutStr         string        `json:"timeout"`
+	Timeout            time.Duration `json:"null,omitempty"`
+	BypassFailed       bool          `json:"bypass_failed"`
+	FailedSleepStr     string        `json:"failed_sleep"`
+	FailedSleep        time.Duration `json:"null,omitempty"`
+	Topics             []string      `json:"topics"`
+	Zookeepers         []string      `json:"zookeepers"`
+	ZkPath             string        `json:"zk_path"`
+	Serializer         string        `json:"serializer"`
+	ContentType        string        `json:"content_type"`
+	ConnectionPoolSize int           `json:"connection_pool_size"`
 }
 
 type ServiceConfig struct {
@@ -77,6 +79,10 @@ func loadConfig(configFile string) (*ServiceConfig, error) {
 			callback.FailedSleep = CFG_MIN_FAILED_SLEEP
 			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_MIN_FAILED_SLEEP/time.Millisecond)
 
+		}
+
+		if callback.ConnectionPoolSize <= 0 {
+			callback.ConnectionPoolSize = http.DefaultMaxIdleConnsPerHost
 		}
 
 	}

@@ -19,7 +19,6 @@ func NewHandler() *HttpHandler {
 func (h *HttpHandler) AssignRouter() {
 	h.Mux["/stat/consumer"] = HttpStatConsumerAction
 	h.Mux["/stat/worker"] = HttpStatWorkerAction
-	h.Mux["/stat/tracker"] = HttpStatTrackerAction
 	h.Mux["/admin/skip"] = HttpAdminSkipAction
 
 }

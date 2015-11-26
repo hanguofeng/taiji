@@ -2,12 +2,15 @@
 *.o
 *.a
 *.so
+kafka-pusher
+kafkapusher
 
 # Folders
 _obj
 _test
 log
 logs
+.idea
 
 # Architecture specific extensions/prefixes
 *.[568vq]

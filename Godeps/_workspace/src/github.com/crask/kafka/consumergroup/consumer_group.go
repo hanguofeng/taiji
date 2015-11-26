@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Shopify/sarama"
 	"github.com/wvanbergen/kazoo-go"
-	"gopkg.in/Shopify/sarama.v1"
 )
 
 var (
@@ -22,7 +22,8 @@ type Config struct {
 	Offsets struct {
 		Initial           int64         // The initial offset method to use if the consumer has no previously stored offset. Must be either sarama.OffsetOldest (default) or sarama.OffsetNewest.
 		ProcessingTimeout time.Duration // Time to wait for all the offsets for a partition to be processed after stopping to consume from it. Defaults to 1 minute.
-		CommitInterval    time.Duration // The interval between which the prossed offsets are commited.
+		CommitInterval    time.Duration // The interval between which the processed offsets are commited.
+		ResetOffsets      bool          // Resets the offsets for the consumergroup so that it won't resume from where it left off previously.
 	}
 }
 
@@ -118,6 +119,16 @@ func JoinConsumerGroup(name string, topics []string, zookeeper []string, config 
 	}
 
 	group := kz.Consumergroup(name)
+
+	if config.Offsets.ResetOffsets {
+		err = group.ResetOffsets()
+		if err != nil {
+			cg.Logf("FAILED to reset offsets of consumergroup: %s!\n", err)
+			kz.Close()
+			return
+		}
+	}
+
 	instance := group.NewInstance()
 
 	var consumer sarama.Consumer
@@ -264,21 +275,49 @@ func (cg *ConsumerGroup) topicListConsumer(topics []string) {
 		cg.Logf("Currently registered consumers: %d\n", len(cg.consumers))
 
 		stopper := make(chan struct{})
+		event := make(chan int)
 
-		for _, topic := range topics {
+		for idx, topic := range topics {
 			cg.wg.Add(1)
-			go cg.topicConsumer(topic, cg.messages, cg.errors, stopper)
+			go func(idx int, topic string) {
+				defer func() {
+					event <- idx
+				}()
+				cg.topicConsumer(topic, cg.messages, cg.errors, stopper)
+			}(idx, topic)
 		}
 
-		select {
-		case <-cg.stopper:
-			close(stopper)
-			return
+		leftRespawnCount := len(topics) * 3
 
-		case <-consumerChanges:
-			cg.Logf("Triggering rebalance due to consumer list change\n")
-			close(stopper)
-			cg.wg.Wait()
+	topicConsumerRespawnLoop:
+		for {
+			if leftRespawnCount--; leftRespawnCount <= 0 {
+				cg.Logf("Too many topicConsumer respawn for topics: %v\n", topics)
+				cg.Close()
+			}
+
+			select {
+			case idx := <-event:
+				if leftRespawnCount > 0 {
+					cg.Logf("Try respawn exited topicConsumer: %s\n", topics[idx])
+					cg.wg.Add(1)
+					go func(idx int) {
+						defer func() {
+							event <- idx
+						}()
+						cg.topicConsumer(topics[idx], cg.messages, cg.errors, stopper)
+					}(idx)
+				}
+			case <-cg.stopper:
+				close(stopper)
+				return
+
+			case <-consumerChanges:
+				cg.Logf("Triggering rebalance due to consumer list change\n")
+				close(stopper)
+				cg.wg.Wait()
+				break topicConsumerRespawnLoop
+			}
 		}
 	}
 }
@@ -323,10 +362,43 @@ func (cg *ConsumerGroup) topicConsumer(topic string, messages chan<- *sarama.Con
 
 	// Consume all the assigned partitions
 	var wg sync.WaitGroup
-	for _, pid := range myPartitions {
-
+	partitionStopper := make(chan struct{})
+	event := make(chan int)
+	for idx, pid := range myPartitions {
 		wg.Add(1)
-		go cg.partitionConsumer(topic, pid.ID, messages, errors, &wg, stopper)
+		go func(idx int, pid *kazoo.Partition) {
+			defer func() {
+				event <- idx
+			}()
+			cg.partitionConsumer(topic, pid.ID, messages, errors, &wg, partitionStopper)
+		}(idx, pid)
+	}
+
+	leftRespawnCount := len(myPartitions) * 3
+
+partitionConsumerRespawnLoop:
+	for {
+		if leftRespawnCount--; leftRespawnCount <= 0 {
+			cg.Logf("%s :: Too many partitionConsumer respawn\n", topic)
+			close(partitionStopper)
+			break partitionConsumerRespawnLoop
+		}
+		select {
+		case idx := <-event:
+			if leftRespawnCount > 0 {
+				cg.Logf("%s/%d :: Try respawn exited partitionConsumer\n", topic, myPartitions[idx].ID)
+				wg.Add(1)
+				go func(idx int, pid *kazoo.Partition) {
+					defer func() {
+						event <- idx
+					}()
+					cg.partitionConsumer(topic, pid.ID, messages, errors, &wg, partitionStopper)
+				}(idx, myPartitions[idx])
+			}
+		case <-stopper:
+			close(partitionStopper)
+			break partitionConsumerRespawnLoop
+		}
 	}
 
 	wg.Wait()
@@ -343,12 +415,11 @@ func (cg *ConsumerGroup) partitionConsumer(topic string, partition int32, messag
 	default:
 	}
 
-	for maxRetry, i := 3, 0; i < maxRetry; i++ {
+	for maxRetries, tries := 5, 0; tries < maxRetries; tries++ {
 		if err := cg.instance.ClaimPartition(topic, partition); err == nil {
 			break
-		} else if err == kazoo.ErrPartitionClaimedByOther && i+1 < maxRetry {
-			cg.Logf("%s/%d :: FAILED to claim the partition: %s, try to claim again in 1 second\n", topic, partition, err)
-			time.Sleep(1 * time.Second)
+		} else if err == kazoo.ErrPartitionClaimedByOther && tries+1 < maxRetries {
+			time.Sleep(time.Duration(5*tries) * time.Second)
 		} else {
 			cg.Logf("%s/%d :: FAILED to claim the partition: %s\n", topic, partition, err)
 			return
@@ -362,7 +433,7 @@ func (cg *ConsumerGroup) partitionConsumer(topic string, partition int32, messag
 		return
 	}
 
-	if nextOffset > 0 {
+	if nextOffset >= 0 {
 		cg.Logf("%s/%d :: Partition consumer starting at offset %d.\n", topic, partition, nextOffset)
 	} else {
 		nextOffset = cg.config.Offsets.Initial

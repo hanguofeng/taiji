@@ -145,15 +145,17 @@ func (zom *zookeeperOffsetManager) FinalizePartition(topic string, partition int
 	tracker := zom.offsets[topic][partition]
 	zom.l.RUnlock()
 
-	if lastOffset-tracker.highestProcessedOffset > 0 {
-		zom.cg.Logf("%s/%d :: Last processed offset: %d. Waiting up to %ds for another %d messages to process...", topic, partition, tracker.highestProcessedOffset, timeout/time.Second, lastOffset-tracker.highestProcessedOffset)
-		if !tracker.waitForOffset(lastOffset, timeout) {
-			return fmt.Errorf("TIMEOUT waiting for offset %d. Last committed offset: %d", lastOffset, tracker.lastCommittedOffset)
+	if lastOffset >= 0 {
+		if lastOffset-tracker.highestProcessedOffset > 0 {
+			zom.cg.Logf("%s/%d :: Last processed offset: %d. Waiting up to %ds for another %d messages to process...", topic, partition, tracker.highestProcessedOffset, timeout/time.Second, lastOffset-tracker.highestProcessedOffset)
+			if !tracker.waitForOffset(lastOffset, timeout) {
+				return fmt.Errorf("TIMEOUT waiting for offset %d. Last committed offset: %d", lastOffset, tracker.lastCommittedOffset)
+			}
 		}
-	}
 
-	if err := zom.commitOffset(topic, partition, tracker); err != nil {
-		return fmt.Errorf("FAILED to commit offset %d to Zookeeper. Last committed offset: %d", tracker.highestProcessedOffset, tracker.lastCommittedOffset)
+		if err := zom.commitOffset(topic, partition, tracker); err != nil {
+			return fmt.Errorf("FAILED to commit offset %d to Zookeeper. Last committed offset: %d", tracker.highestProcessedOffset, tracker.lastCommittedOffset)
+		}
 	}
 
 	zom.l.Lock()
@@ -166,7 +168,11 @@ func (zom *zookeeperOffsetManager) FinalizePartition(topic string, partition int
 func (zom *zookeeperOffsetManager) MarkAsProcessed(topic string, partition int32, offset int64) bool {
 	zom.l.RLock()
 	defer zom.l.RUnlock()
-	return zom.offsets[topic][partition].markAsProcessed(offset)
+	if p, ok := zom.offsets[topic][partition]; ok {
+		return p.markAsProcessed(offset)
+	} else {
+		return false
+	}
 }
 
 func (zom *zookeeperOffsetManager) Close() error {
@@ -222,7 +228,11 @@ func (zom *zookeeperOffsetManager) commitOffsets() error {
 
 func (zom *zookeeperOffsetManager) commitOffset(topic string, partition int32, tracker *PartitionOffsetTracker) error {
 	err := tracker.commit(func(offset int64) error {
-		return zom.cg.group.CommitOffset(topic, partition, offset+1)
+		if offset >= 0 {
+			return zom.cg.group.CommitOffset(topic, partition, offset+1)
+		} else {
+			return nil
+		}
 	})
 
 	if err != nil {
