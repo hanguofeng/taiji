@@ -26,7 +26,7 @@ func init() {
 	flag.BoolVar(&version, "V", false, "show version")
 	flag.BoolVar(&testMode, "t", false, "test config")
 	flag.IntVar(&statPort, "s", -1, "set stat server port")
-	flag.IntVar(&commitInterval, "i", 10, "set stat server port")
+	flag.IntVar(&commitInterval, "i", 10, "set offset commit interval")
 }
 
 func getVersion() string {
