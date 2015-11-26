@@ -88,9 +88,9 @@ func (this *Manager) checkAndRestart() error {
 		for _, worker := range this.workers {
 			worker.Init(this.config, this.coordinator, this.httpTransport)
 		}
+		this.Work()
 		glog.V(1).Info("found coordinator closed, already restarted")
 	}
-	this.Work()
 	return nil
 }
 
