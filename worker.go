@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -15,10 +16,25 @@ import (
 
 type Worker struct {
 	Callback    *WorkerCallback
+	Topics      []string
+	Zookeeper   []string
+	ZkPath      string
 	Consumer    *consumergroup.ConsumerGroup
 	Serializer  string
 	ContentType string
+	Tracker     OffsetMap
 	Transport   http.RoundTripper
+}
+
+type (
+	OffsetMap map[string]*TrackerData
+)
+
+type TrackerData struct {
+	LastRecordOpTime int64
+	CurrRecordOpTime int64
+	LogId            string
+	Offset           int64
 }
 
 type RMSG struct {
@@ -42,7 +58,7 @@ func NewWorker() *Worker {
 	return &Worker{}
 }
 
-func (this *Worker) Init(config *CallbackItemConfig, coordinator *Coordinator, transport http.RoundTripper) error {
+func (this *Worker) Init(config *CallbackItemConfig, transport http.RoundTripper) error {
 	this.Callback = &WorkerCallback{
 		Url:          config.Url,
 		RetryTimes:   config.RetryTimes,
@@ -50,9 +66,13 @@ func (this *Worker) Init(config *CallbackItemConfig, coordinator *Coordinator, t
 		BypassFailed: config.BypassFailed,
 		FailedSleep:  config.FailedSleep,
 	}
+	this.Topics = config.Topics
+	this.Zookeeper = config.Zookeepers
+	this.ZkPath = config.ZkPath
 	this.Consumer = nil
 	this.Serializer = config.Serializer
 	this.ContentType = config.ContentType
+	this.Tracker = make(OffsetMap)
 	this.Transport = transport
 
 	cgConfig := consumergroup.NewConfig()
@@ -60,7 +80,26 @@ func (this *Worker) Init(config *CallbackItemConfig, coordinator *Coordinator, t
 	cgConfig.Offsets.CommitInterval = time.Duration(commitInterval) * time.Second
 	cgConfig.Offsets.Initial = sarama.OffsetNewest
 
-	this.Consumer = coordinator.GetConsumer()
+	// Random Sleeping to avoid burst commit onto ZK.
+	r := rand.Intn(commitInterval)
+	time.Sleep(time.Duration(r))
+
+	if len(this.ZkPath) > 0 {
+		cgConfig.Zookeeper.Chroot = this.ZkPath
+	}
+
+	cgName := getGroupName(this.Callback.Url)
+	consumer, err := consumergroup.JoinConsumerGroup(cgName, this.Topics, this.Zookeeper, cgConfig)
+	if err != nil {
+		glog.Errorf("Failed to join consumer group for url[%v], %v", this.Callback.Url, err.Error())
+		return err
+	} else {
+		glog.V(1).Infof("Join consumer group for url[%s] with UUID[%s]", this.Callback.Url, cgName)
+	}
+
+	glog.Infoln(consumer)
+
+	this.Consumer = consumer
 	return nil
 }
 
@@ -75,7 +114,19 @@ func (this *Worker) Work() {
 		}
 	}()
 
+	eventCount := 0
+	offsets := make(map[string]map[int32]int64)
+
 	for message := range consumer.Messages() {
+		if offsets[message.Topic] == nil {
+			offsets[message.Topic] = make(map[int32]int64)
+		}
+
+		eventCount += 1
+		if offsets[message.Topic][message.Partition] != 0 && offsets[message.Topic][message.Partition] != message.Offset-1 {
+			glog.Errorf("Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n", message.Topic, message.Partition, offsets[message.Topic][message.Partition]+1, message.Offset, message.Offset-offsets[message.Topic][message.Partition]+1)
+		}
+
 		msg := CreateMsg(message)
 		glog.V(2).Infof("received message,[topic:%s][partition:%d][offset:%d]", msg.Topic, msg.Partition, msg.Offset)
 
@@ -107,6 +158,7 @@ func (this *Worker) Work() {
 		}
 		terpc = time.Now()
 
+		offsets[message.Topic][message.Partition] = message.Offset
 		consumer.CommitUpto(message)
 		glog.Infof("commited message,[topic:%s][partition:%d][offset:%d][url:%s][cost:%vms]", msg.Topic, msg.Partition, msg.Offset, this.Callback.Url, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000))
 
@@ -165,6 +217,10 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][cost:%vms][response_body:%s]",
 				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rbody)
 		} else {
+			if this.Serializer == "json" {
+				this.CommitNewTracker(&rmsg, msg)
+			}
+
 			// consume all data in response body to enable connection reusing
 			discardBody(resp.Body)
 		}
@@ -186,4 +242,30 @@ func (this *Worker) Close() {
 	if err := this.Consumer.Close(); err != nil {
 		glog.Errorln("Error closing consumers", err)
 	}
+}
+
+func (this *Worker) GetWorkerTracker() OffsetMap {
+	return this.Tracker
+}
+
+func (this *Worker) CommitNewTracker(rmsg *RMSG, msg *Msg) (err error) {
+	value, ok := this.Tracker[fmt.Sprintf("%d", msg.Partition)]
+	if !ok {
+		this.Tracker[fmt.Sprintf("%d", msg.Partition)] = &TrackerData{
+			LastRecordOpTime: 0,
+			CurrRecordOpTime: rmsg.TimeStamp,
+			LogId:            rmsg.LogId,
+			Offset:           msg.Offset,
+		}
+		return nil
+	} else if ok && rmsg.TimeStamp >= value.CurrRecordOpTime {
+		this.Tracker[fmt.Sprintf("%d", msg.Partition)] = &TrackerData{
+			LastRecordOpTime: value.CurrRecordOpTime,
+			CurrRecordOpTime: rmsg.TimeStamp,
+			LogId:            rmsg.LogId,
+			Offset:           msg.Offset,
+		}
+		return nil
+	}
+	return nil
 }

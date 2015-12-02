@@ -9,7 +9,7 @@
 		},
 		{
 			"ImportPath": "github.com/crask/kafka/consumergroup",
-			"Rev": "49f3fe92ce1ae1271d4356aa7e523a8c1a977051"
+			"Rev": "7c36d9407f99a44e907d849b7e40e1def48ee94c"
 		},
 		{
 			"ImportPath": "github.com/eapache/go-resiliency/breaker",

@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
+
 	"github.com/Shopify/sarama"
 )
 
@@ -31,40 +33,38 @@ func HttpStatWorkerAction(w http.ResponseWriter, r *http.Request) {
 	}
 	pusherDataMap := map[string]map[string]map[int32]OffsetData{}
 	for _, mgr := range server.managers {
-		// TODO, support multiple topic in one callback item
-		topic := mgr.coordinator.Topics[0]
-		status := mgr.coordinator.Closed()
-		if status == true {
-			continue
-		}
-		offset, err := mgr.coordinator.GetConsumer().OffsetManager().Offsets(topic)
-		if err != nil {
-			continue
-		}
-		instanceID := mgr.coordinator.GetConsumer().Instance().ID
-
-		for k, v := range offset {
-			g, ok := pusherDataMap[mgr.coordinator.CallbackUrl]
-			if !ok {
-				g = map[string]map[int32]OffsetData{}
-				pusherDataMap[mgr.coordinator.CallbackUrl] = g
+		for _, worker := range mgr.workers {
+			status := worker.Closed()
+			if status == true {
+				continue
 			}
-			t, ok := g[topic]
-			if !ok {
-				t = map[int32]OffsetData{}
-				g[topic] = t
+			offset, err := worker.Consumer.OffsetManager().Offsets(worker.Topics[0])
+			if err != nil {
+				continue
 			}
-			value, ok := t[k]
-			if !ok {
-				t[k] = OffsetData{
-					UUID:   instanceID,
-					Offset: v,
+			for k, v := range offset {
+				g, ok := pusherDataMap[worker.Callback.Url]
+				if !ok {
+					g = map[string]map[int32]OffsetData{}
+					pusherDataMap[worker.Callback.Url] = g
 				}
-			} else {
-				if v > value.Offset {
+				t, ok := g[worker.Topics[0]]
+				if !ok {
+					t = map[int32]OffsetData{}
+					g[worker.Topics[0]] = t
+				}
+				value, ok := t[k]
+				if !ok {
 					t[k] = OffsetData{
-						UUID:   instanceID,
+						UUID:   worker.Consumer.Instance().ID,
 						Offset: v,
+					}
+				} else {
+					if v > value.Offset {
+						t[k] = OffsetData{
+							UUID:   worker.Consumer.Instance().ID,
+							Offset: v,
+						}
 					}
 				}
 			}
@@ -99,6 +99,88 @@ func HttpStatWorkerAction(w http.ResponseWriter, r *http.Request) {
 	echo2client(w, r, res, code)
 }
 
+func HttpStatTrackerAction(w http.ResponseWriter, r *http.Request) {
+	pusherDataMap := map[string]map[string]map[string]TrackerData{}
+	for _, mgr := range server.managers {
+		for _, worker := range mgr.workers {
+			status := worker.Closed()
+			if status == true {
+				continue
+			}
+			tracker := worker.GetWorkerTracker()
+			for k, v := range tracker {
+				g, ok := pusherDataMap[worker.Callback.Url]
+				if !ok {
+					g = map[string]map[string]TrackerData{}
+					pusherDataMap[worker.Callback.Url] = g
+				}
+				t, ok := g[worker.Topics[0]]
+				if !ok {
+					t = map[string]TrackerData{}
+					g[worker.Topics[0]] = t
+				}
+				value, ok := t[k]
+				if !ok {
+					t[k] = TrackerData{
+						LastRecordOpTime: v.LastRecordOpTime,
+						CurrRecordOpTime: v.CurrRecordOpTime,
+						LogId:            v.LogId,
+						Offset:           v.Offset,
+					}
+				} else {
+					if v.Offset > value.Offset {
+						t[k] = TrackerData{
+							LastRecordOpTime: v.LastRecordOpTime,
+							CurrRecordOpTime: v.CurrRecordOpTime,
+							LogId:            v.LogId,
+							Offset:           v.Offset,
+						}
+					}
+				}
+			}
+		}
+	}
+
+	type response struct {
+		LastRecordOpTime     int64
+		CurrRecordOpTime     int64
+		LogId                string
+		Offset               int64
+		CurrRecordOpDateTime string
+		TimeGap              int64
+	}
+
+	res := map[string]map[string]map[string]response{}
+	for consumergroup, cg := range pusherDataMap {
+		for topic, topicData := range cg {
+			for partition, partitionData := range topicData {
+				g, ok := res[consumergroup]
+				if !ok {
+					g = map[string]map[string]response{}
+					res[consumergroup] = g
+				}
+				t, ok := g[topic]
+				if !ok {
+					t = map[string]response{}
+					g[topic] = t
+				}
+				_, ok = t[partition]
+				if !ok {
+					t[partition] = response{
+						LastRecordOpTime:     partitionData.LastRecordOpTime,
+						CurrRecordOpTime:     partitionData.CurrRecordOpTime,
+						LogId:                partitionData.LogId,
+						Offset:               partitionData.Offset,
+						CurrRecordOpDateTime: time.Unix(partitionData.CurrRecordOpTime/1000, 0).String(),
+						TimeGap:              (partitionData.CurrRecordOpTime - partitionData.LastRecordOpTime) / 1000,
+					}
+				}
+			}
+		}
+	}
+	echo2client(w, r, res, 0)
+}
+
 func HttpAdminSkipAction(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 
@@ -121,7 +203,7 @@ func HttpAdminSkipAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	coordinator, err := mgr.Find(i_partition)
+	worker, err := mgr.Find(i_partition)
 	if err != nil {
 		echo2client(w, r, "invalid topic/partition", 0)
 		return
@@ -132,9 +214,8 @@ func HttpAdminSkipAction(w http.ResponseWriter, r *http.Request) {
 		Partition: int32(i_partition),
 		Offset:    i_offset,
 	}
-	coordinator.GetConsumer().CommitUpto(msg)
-	// trigger supervise to reload Coordinator/Worker
-	coordinator.Close()
+	worker.Consumer.CommitUpto(msg)
+	worker.Close()
 	echo2client(w, r, "", 0)
 }
 

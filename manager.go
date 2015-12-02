@@ -13,7 +13,6 @@ type Manager struct {
 	Topic             string
 	Group             string
 	Url               string
-	coordinator       *Coordinator
 	httpTransport     http.RoundTripper
 	workers           []*Worker
 	superviseInterval time.Duration
@@ -31,7 +30,6 @@ func (this *Manager) Init(config *CallbackItemConfig) error {
 	this.Topic = config.Topics[0]
 	this.Url = config.Url
 	this.Group = getGroupName(this.Url)
-	this.coordinator = NewCoordinator()
 	this.httpTransport = &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		Dial: (&net.Dialer{
@@ -42,14 +40,9 @@ func (this *Manager) Init(config *CallbackItemConfig) error {
 		MaxIdleConnsPerHost: config.ConnectionPoolSize,
 	}
 
-	if err := this.coordinator.Init(config); err != nil {
-		glog.Fatalf("Init coordinator for url[%v] failed, %v", config.Url, err.Error())
-		return err
-	}
-
 	for i := 0; i < config.WorkerNum; i++ {
 		worker := NewWorker()
-		if err := worker.Init(config, this.coordinator, this.httpTransport); err != nil {
+		if err := worker.Init(config, this.httpTransport); err != nil {
 			glog.Fatalf("Init worker for url[%v] failed, %v", config.Url, err.Error())
 			return err
 		}
@@ -63,7 +56,6 @@ func (this *Manager) Init(config *CallbackItemConfig) error {
 }
 
 func (this *Manager) Work() error {
-	go this.coordinator.Work()
 	for _, worker := range this.workers {
 		if nil != worker.Consumer {
 			go worker.Work()
@@ -83,19 +75,20 @@ func (this *Manager) Supervise() {
 
 func (this *Manager) checkAndRestart() error {
 	glog.V(1).Info("checking workers begin...")
-	if this.coordinator.Closed() {
-		this.coordinator.Init(this.config)
-		for _, worker := range this.workers {
-			worker.Init(this.config, this.coordinator, this.httpTransport)
+	for _, worker := range this.workers {
+		if worker.Closed() {
+			worker.Init(this.config, this.httpTransport)
+			go worker.Work()
+			glog.V(1).Info("found worker closed,already restarted")
 		}
-		this.Work()
-		glog.V(1).Info("found coordinator closed, already restarted")
 	}
 	return nil
 }
 
 func (this *Manager) Close() error {
-	this.coordinator.Close()
+	for _, worker := range this.workers {
+		worker.Close()
+	}
 	return nil
 }
 
@@ -104,10 +97,14 @@ func (this *Manager) Restart() {
 	this.checkAndRestart()
 }
 
-func (this *Manager) Find(partition int) (*Coordinator, error) {
-	if offset, err := this.coordinator.GetConsumer().OffsetManager().Offsets(this.Topic); err == nil {
-		if _, ok := offset[int32(partition)]; ok {
-			return this.coordinator, nil
+func (this *Manager) Find(partition int) (*Worker, error) {
+	for _, worker := range this.workers {
+		if offset, err := worker.Consumer.OffsetManager().Offsets(this.Topic); err != nil {
+			continue
+		} else {
+			if _, ok := offset[int32(partition)]; ok {
+				return worker, nil
+			}
 		}
 	}
 

@@ -31,7 +31,7 @@ clean:
 
 save:
 	@echo -e "\033[32;1mUpdating godeps\033[0m"
-	godep update `go list -json | grep github.com | grep -v kafka-pusher | awk '{print $1;}' | tr -d '",'`
+	godep update `go list -json | grep github.com | grep -v kafka-pusher | awk '{print $1;}' | tr -d '",' | sort -u`
 	godep save -r
 	godep save
 
