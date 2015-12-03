@@ -15,15 +15,16 @@ import (
 )
 
 type Worker struct {
-	Callback    *WorkerCallback
-	Topics      []string
-	Zookeeper   []string
-	ZkPath      string
-	Consumer    *consumergroup.ConsumerGroup
-	Serializer  string
-	ContentType string
-	Tracker     OffsetMap
-	Transport   http.RoundTripper
+	Callback        *WorkerCallback
+	Topics          []string
+	Zookeeper       []string
+	ZkPath          string
+	Consumer        *consumergroup.ConsumerGroup
+	Serializer      string
+	ContentType     string
+	Tracker         OffsetMap
+	Transport       http.RoundTripper
+	LogCollectRatio int
 }
 
 type (
