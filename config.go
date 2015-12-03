@@ -15,7 +15,7 @@ const (
 	CFG_DEFAULT_TIMEOUT       = time.Second
 	CFG_DEFAULT_FAILED_SLEEP  = time.Second
 	CFG_MIN_FAILED_SLEEP      = time.Second
-	DEFAULT_LOG_COLLECT_RATIO = 100
+	DEFAULT_LOG_COLLECT_RATIO = 20
 )
 
 type CallbackItemConfig struct {

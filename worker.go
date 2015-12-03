@@ -238,7 +238,7 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 		suc = false
 	}
 	if switcher := this.LogSamplingCollect(); switcher != false {
-		glog.Infof("log sampling,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d][cost:%v][total_cost:%v][content-type:%s][current_time:%s]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), op_time, rmsg.ContentType, terpc)
+		glog.Infof("log sampling,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d][cost:%vms][total_cost:%vms][content-type:%s][current_time:%s]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), op_time, rmsg.ContentType, terpc)
 	}
 
 	return suc, err
