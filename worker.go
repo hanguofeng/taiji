@@ -74,6 +74,7 @@ func (this *Worker) Init(config *CallbackItemConfig, transport http.RoundTripper
 	this.ContentType = config.ContentType
 	this.Tracker = make(OffsetMap)
 	this.Transport = transport
+	this.LogCollectRatio = config.LogCollectRatio
 
 	cgConfig := consumergroup.NewConfig()
 	cgConfig.Offsets.ProcessingTimeout = 10 * time.Second
@@ -205,6 +206,14 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 	tsrpc = time.Now()
 	resp, err := client.Do(req)
 	terpc = time.Now()
+
+	var op_time int64
+	if this.Serializer == "json" {
+		op_time = time.Now().UnixNano()/1000000 - rmsg.TimeStamp
+	} else {
+		op_time = terpc.Sub(tsrpc).Nanoseconds() / 1000000
+	}
+
 	suc := true
 	if nil == err {
 		defer resp.Body.Close()
@@ -214,8 +223,7 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 			if err != nil {
 				rbody = []byte{}
 			}
-			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][cost:%vms][response_body:%s]",
-				retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rbody)
+			glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][http_code:%d][cost:%vms][response_body:%s][current:%s]", retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, resp.StatusCode, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rbody, terpc)
 		} else {
 			if this.Serializer == "json" {
 				this.CommitNewTracker(&rmsg, msg)
@@ -225,11 +233,12 @@ func (this *Worker) delivery(msg *Msg, retry_times int) (success bool, err error
 			discardBody(resp.Body)
 		}
 	} else {
-		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][error:%s][cost:%vms]",
-			retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, err.Error(), fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000))
+		glog.Errorf("delivery failed,[retry_times:%d][topic:%s][partition:%d][offset:%d][msg:%s][url:%s][error:%s][cost:%vms][total_cost:%vms][current:%s]", retry_times, msg.Topic, msg.Partition, msg.Offset, rmsg.Data, this.Callback.Url, err.Error(), fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), op_time, terpc)
 		suc = false
 	}
-	glog.V(2).Infof("delivery message,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d][cost:%vms][content-type:%s]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), rmsg.ContentType)
+	if switcher := this.LogSamplingCollect(); switcher != false {
+		glog.Infof("log sampling,[url:%s][retry_times:%d][topic:%s][partition:%d][offset:%d][cost:%v][total_cost:%v][content-type:%s][current_time:%s]", this.Callback.Url, retry_times, msg.Topic, msg.Partition, msg.Offset, fmt.Sprintf("%.2f", terpc.Sub(tsrpc).Seconds()*1000), op_time, rmsg.ContentType, terpc)
+	}
 
 	return suc, err
 }
@@ -268,4 +277,12 @@ func (this *Worker) CommitNewTracker(rmsg *RMSG, msg *Msg) (err error) {
 		return nil
 	}
 	return nil
+}
+
+func (this *Worker) LogSamplingCollect() bool {
+	r := rand.Intn(this.LogCollectRatio)
+	if r == 1 {
+		return true
+	}
+	return false
 }

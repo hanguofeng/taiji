@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	CFG_DEFAULT_TIMEOUT      = time.Second
-	CFG_DEFAULT_FAILED_SLEEP = time.Second
-	CFG_MIN_FAILED_SLEEP     = time.Second
+	CFG_DEFAULT_TIMEOUT       = time.Second
+	CFG_DEFAULT_FAILED_SLEEP  = time.Second
+	CFG_MIN_FAILED_SLEEP      = time.Second
+	DEFAULT_LOG_COLLECT_RATIO = 100
 )
 
 type CallbackItemConfig struct {
@@ -32,6 +33,7 @@ type CallbackItemConfig struct {
 	Serializer         string        `json:"serializer"`
 	ContentType        string        `json:"content_type"`
 	ConnectionPoolSize int           `json:"connection_pool_size"`
+	LogCollectRatio    int           `json:"log_collect_ratio"`
 }
 
 type ServiceConfig struct {
@@ -83,6 +85,10 @@ func loadConfig(configFile string) (*ServiceConfig, error) {
 
 		if callback.ConnectionPoolSize <= 0 {
 			callback.ConnectionPoolSize = http.DefaultMaxIdleConnsPerHost
+		}
+
+		if callback.LogCollectRatio <= 0 {
+			callback.LogCollectRatio = DEFAULT_LOG_COLLECT_RATIO
 		}
 
 	}
