@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/crask/kafka-pusher",
-	"GoVersion": "go1.5",
+	"GoVersion": "go1.5.1",
 	"Deps": [
 		{
 			"ImportPath": "github.com/Shopify/sarama",
@@ -8,8 +8,9 @@
 			"Rev": "35093741160a61deca1a9b08fb5f508c6cece9c8"
 		},
 		{
-			"ImportPath": "github.com/crask/kafka/consumergroup",
-			"Rev": "7c36d9407f99a44e907d849b7e40e1def48ee94c"
+			"ImportPath": "github.com/cihub/seelog",
+			"Comment": "go1.1-84-g0f89bb7",
+			"Rev": "0f89bb749d6163878682e320cd7c491a1680de6b"
 		},
 		{
 			"ImportPath": "github.com/eapache/go-resiliency/breaker",
@@ -20,10 +21,6 @@
 			"ImportPath": "github.com/eapache/queue",
 			"Comment": "v1.0.2",
 			"Rev": "ded5959c0d4e360646dc9e9908cff48666781367"
-		},
-		{
-			"ImportPath": "github.com/golang/glog",
-			"Rev": "fca8c8854093a154ff1eb580aae10276ad6b1b5f"
 		},
 		{
 			"ImportPath": "github.com/golang/snappy",
