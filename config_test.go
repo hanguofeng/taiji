@@ -1,8 +1,9 @@
 package main
+
 import (
-	"testing"
 	"io/ioutil"
 	"os"
+	"testing"
 )
 
 const (
@@ -35,7 +36,7 @@ const (
 )
 
 func TestReadConfigFile(t *testing.T) {
-	file, err := ioutil.TempFile("", "config_file_");
+	file, err := ioutil.TempFile("", "config_file_")
 
 	if err != nil {
 		t.Error("Create tempfile failed, failed to test")

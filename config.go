@@ -19,11 +19,14 @@ const (
 )
 
 type MapConfig map[string]interface{}
+type ArbiterConfig MapConfig
+type OffsetStorageConfig MapConfig
+type TransporterConfig MapConfig
 
 type OffsetManagerConfig struct {
-	StorageName  string               `json:"storage_name"`
-	Storage      MapConfig            `json:"storage_config"`
-	SlaveStorage map[string]MapConfig `json:"slave_storage_config"`
+	StorageName  string                         `json:"storage_name"`
+	Storage      OffsetStorageConfig            `json:"storage_config"`
+	SlaveStorage map[string]OffsetStorageConfig `json:"slave_storage_config"`
 }
 
 type CallbackItemConfig struct {
@@ -44,9 +47,9 @@ type CallbackItemConfig struct {
 	LogCollectRatio    int                 `json:"log_collect_ratio"`
 	OffsetConfig       OffsetManagerConfig `json:"offset"`
 	ArbiterName        string              `json:"arbiter_name"`
-	ArbiterConfig      MapConfig           `json:"arbiter_config"`
+	ArbiterConfig      ArbiterConfig       `json:"arbiter_config"`
 	TransporterName    string              `json:"transporter_name"`
-	TransporterConfig  MapConfig           `json:"transporter_config"`
+	TransporterConfig  TransporterConfig   `json:"transporter_config"`
 }
 
 type ServiceConfig struct {
