@@ -6,8 +6,8 @@ type PartitionManager struct {
 	Topic       string
 	Partition   int32
 	consumer    sarama.PartitionConsumer
-	arbiter     *Arbiter
-	transporter []*Transporter
+	arbiter     Arbiter
+	transporter []Transporter
 	manager     *CallbackManager
 }
 
@@ -32,10 +32,10 @@ func (*PartitionManager) Close() {
 	// close arbiter
 }
 
-func (*PartitionManager) GetConsumer() {
-
+func (*PartitionManager) GetConsumer() sarama.PartitionConsumer {
+	return nil
 }
 
-func (*PartitionManager) GetArbiter() {
-
+func (*PartitionManager) GetArbiter() Arbiter {
+	return nil
 }

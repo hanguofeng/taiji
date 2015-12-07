@@ -9,8 +9,8 @@ type OffsetMap map[string]map[int32]int64
 
 type OffsetManager struct {
 	config             *OffsetManagerConfig
-	offsetStorage      *OffsetStorage
-	slaveOffsetStorage []*OffsetStorage
+	offsetStorage      OffsetStorage
+	slaveOffsetStorage []OffsetStorage
 	l                  sync.RWMutex
 	offsets            OffsetMap
 	manager            *CallbackManager
