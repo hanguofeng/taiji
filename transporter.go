@@ -14,15 +14,3 @@ type WorkerCallback struct {
 	BypassFailed bool
 	FailedSleep  time.Duration
 }
-
-type HTTPTransporter struct {
-	Callback    *WorkerCallback
-	Serializer  string
-	ContentType string
-}
-
-type HTTPBatchTransporter struct {
-	Callback    *WorkerCallback
-	Serializer  string
-	ContentType string
-}
