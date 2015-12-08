@@ -292,7 +292,7 @@ func (this *CallbackManager) partitionRun(consumers kazoo.ConsumergroupInstanceL
 					event <- idx
 				}()
 				partitionManager.Run(this.wg, this.callbackManagerStopper)
-			}()
+			}(topic, i)
 		}
 	}
 	return nil
