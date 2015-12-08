@@ -143,10 +143,15 @@ func (this *PartitionManager) Close() {
 
 }
 
-func (*PartitionManager) GetConsumer() sarama.PartitionConsumer {
-	return nil
+func (this *PartitionManager) GetConsumer() sarama.PartitionConsumer {
+	return this.consumer
 }
 
 func (*PartitionManager) GetArbiter() Arbiter {
 	return nil
+}
+
+func (this *PartitionManager) GetCallbackManager() *CallbackManager {
+	return this.manager
+
 }
