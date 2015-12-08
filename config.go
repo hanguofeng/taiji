@@ -30,25 +30,25 @@ type OffsetMangerConfig struct {
 }
 
 type CallbackItemConfig struct {
-	WorkerNum         int                 `json:"worker_num"`
-	Url               string              `json:"url"`
-	RetryTimes        int                 `json:"retry_times"`
-	TimeoutStr        string              `json:"timeout"`
-	Timeout           time.Duration       `json:"null,omitempty"`
-	BypassFailed      bool                `json:"bypass_failed"`
-	FailedSleepStr    string              `json:"failed_sleep"`
-	FailedSleep       time.Duration       `json:"null,omitempty"`
-	Topics            []string            `json:"topics"`
-	Zookeepers        []string            `json:"zookeepers"`
-	ZkPath            string              `json:"zk_path"`
-	Serializer        string              `json:"serializer"`
-	ContentType       string              `json:"content_type"`
-	LogCollectRatio   int                 `json:"log_collect_ratio"`
-	OffsetConfig      *OffsetMangerConfig `json:"offset"`
-	ArbiterName       string              `json:"arbiter_name"`
-	ArbiterConfig     ArbiterConfig       `json:"arbiter_config"`
-	TransporterName   string              `json:"transporter_name"`
-	TransporterConfig TransporterConfig   `json:"transporter_config"`
+	WorkerNum         int                `json:"worker_num"`
+	Url               string             `json:"url"`
+	RetryTimes        int                `json:"retry_times"`
+	TimeoutStr        string             `json:"timeout"`
+	Timeout           time.Duration      `json:"null,omitempty"`
+	BypassFailed      bool               `json:"bypass_failed"`
+	FailedSleepStr    string             `json:"failed_sleep"`
+	FailedSleep       time.Duration      `json:"null,omitempty"`
+	Topics            []string           `json:"topics"`
+	Zookeepers        []string           `json:"zookeepers"`
+	ZkPath            string             `json:"zk_path"`
+	Serializer        string             `json:"serializer"`
+	ContentType       string             `json:"content_type"`
+	LogCollectRatio   int                `json:"log_collect_ratio"`
+	OffsetConfig      OffsetMangerConfig `json:"offset"`
+	ArbiterName       string             `json:"arbiter_name"`
+	ArbiterConfig     ArbiterConfig      `json:"arbiter_config"`
+	TransporterName   string             `json:"transporter_name"`
+	TransporterConfig TransporterConfig  `json:"transporter_config"`
 }
 
 type ServiceConfig struct {
