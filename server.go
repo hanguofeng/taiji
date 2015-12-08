@@ -132,3 +132,7 @@ func (this *Server) Close() {
 func (this *Server) GetCallbackManagers() []*CallbackManager {
 	return this.callbackManagers
 }
+
+func (this *Server) GetHttpTransport() http.RoundTripper {
+	return this.httpTransport
+}
