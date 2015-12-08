@@ -23,38 +23,38 @@ type ArbiterConfig MapConfig
 type OffsetStorageConfig MapConfig
 type TransporterConfig MapConfig
 
-type OffsetManagerConfig struct {
-	StorageName  string                         `json:"storage_name"`
-	Storage      OffsetStorageConfig            `json:"storage_config"`
-	SlaveStorage map[string]OffsetStorageConfig `json:"slave_storage_config"`
+type OffsetMangerConfig struct {
+	StorageName   string                         `json:"storage_name"`
+	StorageConfig OffsetStorageConfig            `json:"storage_config"`
+	SlaveStorage  map[string]OffsetStorageConfig `json:"slave_storage_config"`
 }
 
 type CallbackItemConfig struct {
-	WorkerNum          int                 `json:"worker_num"`
-	Url                string              `json:"url"`
-	RetryTimes         int                 `json:"retry_times"`
-	TimeoutStr         string              `json:"timeout"`
-	Timeout            time.Duration       `json:"null,omitempty"`
-	BypassFailed       bool                `json:"bypass_failed"`
-	FailedSleepStr     string              `json:"failed_sleep"`
-	FailedSleep        time.Duration       `json:"null,omitempty"`
-	Topics             []string            `json:"topics"`
-	Zookeepers         []string            `json:"zookeepers"`
-	ZkPath             string              `json:"zk_path"`
-	Serializer         string              `json:"serializer"`
-	ContentType        string              `json:"content_type"`
-	ConnectionPoolSize int                 `json:"connection_pool_size"`
-	LogCollectRatio    int                 `json:"log_collect_ratio"`
-	OffsetConfig       OffsetManagerConfig `json:"offset"`
-	ArbiterName        string              `json:"arbiter_name"`
-	ArbiterConfig      ArbiterConfig       `json:"arbiter_config"`
-	TransporterName    string              `json:"transporter_name"`
-	TransporterConfig  TransporterConfig   `json:"transporter_config"`
+	WorkerNum         int                 `json:"worker_num"`
+	Url               string              `json:"url"`
+	RetryTimes        int                 `json:"retry_times"`
+	TimeoutStr        string              `json:"timeout"`
+	Timeout           time.Duration       `json:"null,omitempty"`
+	BypassFailed      bool                `json:"bypass_failed"`
+	FailedSleepStr    string              `json:"failed_sleep"`
+	FailedSleep       time.Duration       `json:"null,omitempty"`
+	Topics            []string            `json:"topics"`
+	Zookeepers        []string            `json:"zookeepers"`
+	ZkPath            string              `json:"zk_path"`
+	Serializer        string              `json:"serializer"`
+	ContentType       string              `json:"content_type"`
+	LogCollectRatio   int                 `json:"log_collect_ratio"`
+	OffsetConfig      *OffsetMangerConfig `json:"offset"`
+	ArbiterName       string              `json:"arbiter_name"`
+	ArbiterConfig     ArbiterConfig       `json:"arbiter_config"`
+	TransporterName   string              `json:"transporter_name"`
+	TransporterConfig TransporterConfig   `json:"transporter_config"`
 }
 
 type ServiceConfig struct {
-	LogFile   string               `json:"log_file"`
-	Callbacks []CallbackItemConfig `json:"consumer_groups"`
+	LogFile            string               `json:"log_file"`
+	Callbacks          []CallbackItemConfig `json:"consumer_groups"`
+	ConnectionPoolSize int                  `json:"connection_pool_size"`
 }
 
 func LoadConfigFile(configFile string) (*ServiceConfig, error) {
