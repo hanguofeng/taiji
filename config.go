@@ -72,6 +72,10 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 		return nil, err
 	}
 
+	if c.ConnectionPoolSize <= 0 {
+		c.ConnectionPoolSize = http.DefaultMaxIdleConnsPerHost
+	}
+
 	for i, _ := range c.Callbacks {
 		callback := &c.Callbacks[i]
 		callback.Timeout, err = time.ParseDuration(callback.TimeoutStr)
@@ -90,7 +94,6 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 
 			callback.FailedSleep = CFG_DEFAULT_FAILED_SLEEP
 			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_DEFAULT_FAILED_SLEEP/time.Millisecond)
-
 		}
 
 		if callback.FailedSleep < CFG_MIN_FAILED_SLEEP {
@@ -99,11 +102,6 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 
 			callback.FailedSleep = CFG_MIN_FAILED_SLEEP
 			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_MIN_FAILED_SLEEP/time.Millisecond)
-
-		}
-
-		if callback.ConnectionPoolSize <= 0 {
-			callback.ConnectionPoolSize = http.DefaultMaxIdleConnsPerHost
 		}
 
 		if callback.LogCollectRatio <= 0 {
