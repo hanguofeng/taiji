@@ -10,16 +10,10 @@ type HttpHandler struct {
 	Mux map[string]func(http.ResponseWriter, *http.Request)
 }
 
-func NewHandler() *HttpHandler {
+func NewHttpHandler() *HttpHandler {
 	return &HttpHandler{
 		Mux: make(map[string]func(http.ResponseWriter, *http.Request)),
 	}
-}
-
-func (h *HttpHandler) AssignRouter() {
-
-	return
-
 }
 
 func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -28,8 +22,6 @@ func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//TODO: handle 404, just for debugging now
-	io.WriteString(w, "My server: "+r.URL.Path)
+	w.WriteHeader(404)
+	io.WriteString(w, "Path not exists: "+r.URL.Path)
 }
-
-//

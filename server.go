@@ -16,46 +16,47 @@ import (
 
 type Server struct {
 	callbackManagers []*CallbackManager
+	serviceRunner    *ServiceRunner
 	adminServer      *http.Server
 	handler          *HttpHandler
 	httpTransport    http.RoundTripper
 	config           *ServiceConfig
 }
 
-var _instance *Server
+var serverInstance *Server
 
 func GetServer() *Server {
 	// singleton
-	if _instance == nil {
-		_instance = &Server{}
-
-		// init http service
-		if statPort > 0 {
-			_instance.handler = NewHandler()
-
-			_instance.adminServer = &http.Server{
-				Addr:           fmt.Sprintf(":%d", statPort),
-				Handler:        _instance.handler,
-				ReadTimeout:    1 * time.Second,
-				WriteTimeout:   1 * time.Second,
-				MaxHeaderBytes: 1 << 20,
-			}
-		}
+	if serverInstance == nil {
+		serverInstance = &Server{}
+		serverInstance.handler = NewHttpHandler()
 	}
-	return _instance
+	return serverInstance
 }
 
 func (this *Server) Init(config *ServiceConfig) error {
 	config, err := LoadConfigFile(configFile)
+
 	if err != nil {
 		seelog.Criticalf("Load Config err [err:%s]", err.Error())
 		return err
 	}
 
 	// check env var
-	if commitInterval < 0 {
-		seelog.Errorf("Invalid commit interval [commitInterval:%d]", commitInterval)
-		return errors.New("Invalid param")
+	if commitInterval <= 0 {
+		seelog.Errorf("Invalid commitInterval [commitInterval:%d]", commitInterval)
+		return errors.New("Invalid commitInterval")
+	}
+
+	// init admin server
+	if statPort > 0 {
+		serverInstance.adminServer = &http.Server{
+			Addr:           fmt.Sprintf(":%d", statPort),
+			Handler:        serverInstance.handler,
+			ReadTimeout:    1 * time.Second,
+			WriteTimeout:   1 * time.Second,
+			MaxHeaderBytes: 1 << 20,
+		}
 	}
 
 	// init sarama logger
@@ -75,32 +76,38 @@ func (this *Server) Init(config *ServiceConfig) error {
 	// init callback managers
 	for i, _ := range config.Callbacks {
 		callbackConfig := &config.Callbacks[i]
-		seelog.Infof("%v", callbackConfig)
+		seelog.Debugf("Initialize CallbackManager [callbackConfig:%v]", callbackConfig)
 		callbackManager := NewCallbackManager()
-		if e := callbackManager.Init(callbackConfig); e != nil {
-			seelog.Criticalf("Init manager failed [url:%s][err:%s]", callbackConfig.Url)
-			return e
+		if err := callbackManager.Init(callbackConfig); err != nil {
+			seelog.Criticalf("Init CallbackManager failed [url:%s][err:%s]", callbackConfig.Url)
+			return err
 		}
 		this.callbackManagers = append(this.callbackManagers, callbackManager)
 	}
+
+	this.serviceRunner = NewServiceRunner()
 
 	return nil
 }
 
 func (this *Server) Run() error {
 	// run consumer managers
-	for _, callbackManager := range this.callbackManagers {
-		callbackManager.Run()
+	callbackManagerStatus, err := this.serviceRunner.RunAsync(this.callbackManagers)
+
+	if nil != err {
+		seelog.Criticalf("Start CallbackManager failed, Pusher failed to start")
+		return err
 	}
-	seelog.Infof("Pusher server get to work!")
+
+	seelog.Debugf("Pusher server get to work")
 
 	// run http service
 	if statPort > 0 {
 		if err := this.adminServer.ListenAndServe(); err != nil {
-			seelog.Criticalf("Start admin http server failed [err:%s].", err.Error())
+			seelog.Criticalf("Start admin http server failed [err:%s]", err.Error())
 			return err
 		}
-		seelog.Infof("Pusher start admin http server success.")
+		seelog.Info("Pusher start admin http server success")
 	}
 
 	// register signal callback
@@ -108,11 +115,14 @@ func (this *Server) Run() error {
 	signal.Notify(c, syscall.SIGINT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGKILL)
 
 	select {
+	case <-callbackManagerStatus:
+		seelog.Critical("Pusher have one CallbackManager unexpected stopped, stopping server")
 	case <-c:
-		seelog.Infof("Pusher catch exit signal")
-		this.Close()
-		seelog.Infof("Pusher exit done")
+		seelog.Info("Pusher catch exit signal")
 	}
+
+	this.Close()
+	seelog.Infof("Pusher exit done")
 
 	return nil
 }
@@ -123,10 +133,10 @@ func (this *Server) Bind(uri string, callback func(w http.ResponseWriter, r *htt
 
 func (this *Server) Close() {
 	// call httpServer Close
-	// call callbackManager Close
-	for _, callbackManager := range this.callbackManagers {
-		callbackManager.Close()
-	}
+	// TODO, currently not provided by net/http package
+
+	// stop callbackManagers
+	this.serviceRunner.Close()
 }
 
 func (this *Server) GetCallbackManagers() []*CallbackManager {
