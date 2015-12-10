@@ -53,7 +53,7 @@ func (sr *ServiceRunner) sanitizeInput(services interface{}) ([]Runnable, error)
 		return func() ([]Runnable, error) {
 			// anonymous function 2, use to do input sanitize work
 			defer func() {
-				if r := recover(); nil != r {
+				if r := recover(); r != nil {
 					// panic
 				}
 			}()
@@ -84,7 +84,7 @@ func (sr *ServiceRunner) sanitizeInput(services interface{}) ([]Runnable, error)
 		}()
 	}()
 
-	if nil == runnable && nil == err {
+	if runnable == nil && err == nil {
 		// panic
 		return nil, errors.New("Invalid input, array item must support Run/Close method")
 

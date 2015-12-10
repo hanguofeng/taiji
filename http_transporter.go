@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/Shopify/sarama"
 	"github.com/cihub/seelog"
-	"github.com/crask/kafka-pusher/Godeps/_workspace/src/github.com/Shopify/sarama"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -152,7 +152,7 @@ func (ht *HTTPTransporter) delivery(message *sarama.ConsumerMessage, retryTime i
 
 	success := false
 
-	if nil == err {
+	if err == nil {
 		defer res.Body.Close()
 
 		if 200 == res.StatusCode {
@@ -171,7 +171,7 @@ func (ht *HTTPTransporter) delivery(message *sarama.ConsumerMessage, retryTime i
 		} else {
 			// error response code, read body
 			responseBody, err := ioutil.ReadAll(res.Body)
-			if nil != err {
+			if err != nil {
 				responseBody = []byte{}
 			}
 			seelog.Errorf(

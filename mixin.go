@@ -28,7 +28,7 @@ func (ssc *StartStopControl) markStart() {
 func (ssc *StartStopControl) markStop() {
 	ssc.markClosing()
 
-	if nil != ssc.stopped {
+	if ssc.stopped != nil {
 		select {
 		case <-ssc.stopped:
 		default:
@@ -38,7 +38,7 @@ func (ssc *StartStopControl) markStop() {
 }
 
 func (ssc *StartStopControl) markClosing() {
-	if nil != ssc.stopper {
+	if ssc.stopper != nil {
 		select {
 		case <-ssc.stopper:
 		default:
@@ -48,7 +48,7 @@ func (ssc *StartStopControl) markClosing() {
 }
 
 func (ssc *StartStopControl) WaitForClose() {
-	if nil != ssc.stopper {
+	if ssc.stopper != nil {
 		select {
 		case <-ssc.stopper:
 		}
@@ -56,7 +56,7 @@ func (ssc *StartStopControl) WaitForClose() {
 }
 
 func (ssc *StartStopControl) WaitForExit() {
-	if nil != ssc.stopped {
+	if ssc.stopped != nil {
 		select {
 		case <-ssc.stopped:
 		}
@@ -87,7 +87,7 @@ func (ssc *StartStopControl) AsyncClose() error {
 }
 
 func (ssc *StartStopControl) Closed() bool {
-	if nil == ssc.stopped || nil == ssc.stopper {
+	if ssc.stopped == nil || ssc.stopper == nil {
 		return true
 	}
 

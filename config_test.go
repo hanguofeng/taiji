@@ -50,7 +50,7 @@ func TestReadConfigFile(t *testing.T) {
 
 	config, err := LoadConfigFile(fileName)
 
-	if nil == config || nil != err {
+	if config == nil || err != nil {
 		t.Errorf("Parse config file failed with config[%v] error[%s]", config, err.Error())
 	}
 

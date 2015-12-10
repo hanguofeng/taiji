@@ -101,7 +101,7 @@ func (this *Server) Run() error {
 	seelog.Debugf("Pusher server get to work")
 
 	// run http service
-	if nil != this.adminServer {
+	if this.adminServer != nil {
 		if err := this.adminServer.ListenAndServe(); err != nil {
 			seelog.Criticalf("Start admin http server failed [err:%s]", err.Error())
 			return err
