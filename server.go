@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/cihub/seelog"
@@ -15,12 +14,13 @@ import (
 )
 
 type Server struct {
-	callbackManagers []*CallbackManager
-	serviceRunner    *ServiceRunner
-	adminServer      *http.Server
-	handler          *HttpHandler
-	httpTransport    http.RoundTripper
-	config           *ServiceConfig
+	*StartStopControl
+	callbackManagers      []*CallbackManager
+	callbackManagerRunner *ServiceRunner
+	adminServer           *http.Server
+	handler               *HttpHandler
+	httpTransport         http.RoundTripper
+	config                *ServiceConfig
 }
 
 var serverInstance *Server
@@ -42,17 +42,11 @@ func (this *Server) Init(config *ServiceConfig) error {
 		return err
 	}
 
-	// check env var
-	if commitInterval <= 0 {
-		seelog.Errorf("Invalid commitInterval [commitInterval:%d]", commitInterval)
-		return errors.New("Invalid commitInterval")
-	}
-
 	// init admin server
-	if statPort > 0 {
-		serverInstance.adminServer = &http.Server{
-			Addr:           fmt.Sprintf(":%d", statPort),
-			Handler:        serverInstance.handler,
+	if config.StatServerPort > 0 {
+		this.adminServer = &http.Server{
+			Addr:           fmt.Sprintf(":%d", config.StatServerPort),
+			Handler:        this.handler,
 			ReadTimeout:    1 * time.Second,
 			WriteTimeout:   1 * time.Second,
 			MaxHeaderBytes: 1 << 20,
@@ -85,16 +79,21 @@ func (this *Server) Init(config *ServiceConfig) error {
 		this.callbackManagers = append(this.callbackManagers, callbackManager)
 	}
 
-	this.serviceRunner = NewServiceRunner()
+	this.callbackManagerRunner = NewServiceRunner()
 
+	return nil
+}
+
+func (this *Server) Validate() error {
+	// TODO
 	return nil
 }
 
 func (this *Server) Run() error {
 	// run consumer managers
-	callbackManagerStatus, err := this.serviceRunner.RunAsync(this.callbackManagers)
+	_, err := this.callbackManagerRunner.RunAsync(this.callbackManagers)
 
-	if nil != err {
+	if err != nil {
 		seelog.Criticalf("Start CallbackManager failed, Pusher failed to start")
 		return err
 	}
@@ -102,7 +101,7 @@ func (this *Server) Run() error {
 	seelog.Debugf("Pusher server get to work")
 
 	// run http service
-	if statPort > 0 {
+	if nil != this.adminServer {
 		if err := this.adminServer.ListenAndServe(); err != nil {
 			seelog.Criticalf("Start admin http server failed [err:%s]", err.Error())
 			return err
@@ -115,28 +114,24 @@ func (this *Server) Run() error {
 	signal.Notify(c, syscall.SIGINT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGKILL)
 
 	select {
-	case <-callbackManagerStatus:
+	case <-this.callbackManagerRunner.WaitForExitChannel():
 		seelog.Critical("Pusher have one CallbackManager unexpected stopped, stopping server")
+	case <-this.WaitForCloseChannel():
+		seelog.Info("Pusher server close method called")
+		this.callbackManagerRunner.Close()
 	case <-c:
 		seelog.Info("Pusher catch exit signal")
+		this.callbackManagerRunner.Close()
 	}
 
-	this.Close()
 	seelog.Infof("Pusher exit done")
+	// adminServer would not close properly
 
 	return nil
 }
 
 func (this *Server) Bind(uri string, callback func(w http.ResponseWriter, r *http.Request)) {
 	this.handler.Mux[uri] = callback
-}
-
-func (this *Server) Close() {
-	// call httpServer Close
-	// TODO, currently not provided by net/http package
-
-	// stop callbackManagers
-	this.serviceRunner.Close()
 }
 
 func (this *Server) GetCallbackManagers() []*CallbackManager {

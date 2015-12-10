@@ -1,218 +1,139 @@
 package main
 
 import (
-	"errors"
 	"github.com/Shopify/sarama"
 	"github.com/cihub/seelog"
 	"github.com/wvanbergen/kazoo-go"
-	"sync"
 	"time"
 )
 
-var (
-	AlreadyClosing = errors.New("The consumer group is already shutting down.")
+const (
+	GET_CONSUMER_LIST_RETRY_TIME     = 10 * time.Second
+	RUN_PARTITION_MANAGER_RETRY_TIME = 10 * time.Second
+	CONSUMER_LIST_CHANGE_RELOAD_TIME = 5 * time.Second
+	WATCH_INSTANCE_CHANGE_DELAY_TIME = 5 * time.Second
 )
 
 type CallbackManager struct {
-	Topics                 []string
-	Group                  string
-	Url                    string
-	config                 *CallbackItemConfig
-	cgConfig               *CgConfig
-	kazoo                  *kazoo.Kazoo                 // ZK
-	kazooGroup             *kazoo.Consumergroup         // ZK ConsumerGroup /consumers/<cgname>/ Object
-	kazooGroupInstance     *kazoo.ConsumergroupInstance // ZK ConsumerGroup /consumers/<cgname>/ids/<cginstance> Object
-	saramaConsumer         sarama.Consumer              // Kafka Sarama Consumer
+	*StartStopControl
+	Topics    []string
+	GroupName string
+	Url       string
+
+	// config
+	config          *CallbackItemConfig
+	saramaConfig    *sarama.Config
+	zookeeperConfig *kazoo.Config
+
+	// zk instances
+	kazoo              *kazoo.Kazoo                 // ZK
+	kazooGroup         *kazoo.Consumergroup         // ZK ConsumerGroup /consumers/<cgname>/ Object
+	kazooGroupInstance *kazoo.ConsumergroupInstance // ZK ConsumerGroup /consumers/<cgname>/ids/<cginstance> Object
+
+	// kafka sarama consumer
+	saramaConsumer sarama.Consumer
+
+	// partition manager
 	partitionManagers      []*PartitionManager
-	offsetManager          *OffsetManager
-	callbackManagerStopper chan struct{}
-	wg                     *sync.WaitGroup
-}
+	partitionManagerRunner *ServiceRunner
 
-type CgConfig struct {
-	*sarama.Config
-
-	Zookeeper *kazoo.Config
-
-	Offsets struct {
-		Initial           int64         // The initial offset method to use if the consumer has no previously stored offset. Must be either sarama.OffsetOldest (default) or sarama.OffsetNewest.
-		ProcessingTimeout time.Duration // Time to wait for all the offsets for a partition to be processed after stopping to consume from it. Defaults to 1 minute.
-		CommitInterval    time.Duration // The interval between which the processed offsets are commited.
-		ResetOffsets      bool          // Resets the offsets for the consumergroup so that it won't resume from where it left off previously.
-	}
-}
-
-func NewConfig() *CgConfig {
-	cgConfig := &CgConfig{}
-	cgConfig.Config = sarama.NewConfig()
-	cgConfig.Zookeeper = kazoo.NewConfig()
-	cgConfig.Offsets.Initial = sarama.OffsetOldest
-	cgConfig.Offsets.ProcessingTimeout = 60 * time.Second
-	cgConfig.Offsets.CommitInterval = 10 * time.Second
-
-	return cgConfig
-}
-
-func (cgConfig *CgConfig) Validate() error {
-	if cgConfig.Zookeeper.Timeout <= 0 {
-		return sarama.ConfigurationError("ZookeeperTimeout should have a duration > 0")
-	}
-
-	if cgConfig.Offsets.CommitInterval <= 0 {
-		return sarama.ConfigurationError("CommitInterval should have a duration > 0")
-	}
-
-	if cgConfig.Offsets.Initial != sarama.OffsetOldest && cgConfig.Offsets.Initial != sarama.OffsetNewest {
-		return errors.New("Offsets.Initial should be sarama.OffsetOldest or sarama.OffsetNewest")
-	}
-
-	if cgConfig.Config != nil {
-		if err := cgConfig.Config.Validate(); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	// offset manager
+	offsetManager *OffsetManager
 }
 
 func NewCallbackManager() *CallbackManager {
 	return &CallbackManager{}
 }
 
-func (this *CallbackManager) Init(config *CallbackItemConfig) (err error) {
+func (this *CallbackManager) Init(config *CallbackItemConfig) error {
+	var err error
+
+	this.config = config
 	this.Topics = config.Topics
 	this.Url = config.Url
-	this.Group = getGroupName(this.Url)
-	this.config = config
-
-	// connect zookeeper
-	if this.Group == "" {
-		return sarama.ConfigurationError("Empty consumergroup name")
-	}
-
-	if len(this.Topics) == 0 {
-		return sarama.ConfigurationError("No topics provided")
-	}
-
-	if len(this.config.Zookeepers) == 0 {
-		return errors.New("You need to provide at least one zookeeper node address!")
-	}
-
-	if this.cgConfig == nil {
-		this.cgConfig = NewConfig()
-	}
-	this.cgConfig.ClientID = this.Group
-
-	// Validate configuration
-	if err := this.cgConfig.Validate(); err != nil {
-		return err
-	}
-
-	var kz *kazoo.Kazoo
-	if kz, err = kazoo.NewKazoo(this.config.Zookeepers, this.cgConfig.Zookeeper); err != nil {
-		return err
-	}
-
-	brokers, err := kz.BrokerList()
-	if err != nil {
-		kz.Close()
-		return err
-	}
-
-	group := kz.Consumergroup(this.Group)
-
-	if this.cgConfig.Offsets.ResetOffsets {
-		err = group.ResetOffsets()
-		if err != nil {
-			seelog.Errorf("Failed to reset offsets of consumergroup [err:%s]", err)
-			kz.Close()
-			return
-		}
-	}
-
-	//connect sarama consumer
-	this.kazooGroupInstance = group.NewInstance()
-
-	if this.saramaConsumer, err = sarama.NewConsumer(brokers, this.cgConfig.Config); err != nil {
-		kz.Close()
-		return
-	}
 
 	// set group as MD5(Url)
-	// init OffsetManager
+	this.GroupName = getGroupName(this.Url)
+	this.saramaConfig = sarama.NewConfig()
+	this.zookeeperConfig = kazoo.NewConfig()
+	this.saramaConfig.ClientID = this.GroupName
 
-	offsetManager := NewOffsetManager()
-	offsetManager.Init(config.OffsetConfig, this)
+	// init OffsetManager
+	this.offsetManager = NewOffsetManager()
+	if err = this.offsetManager.Init(config.OffsetConfig, this); err != nil {
+		return err
+	}
+
+	this.partitionManagerRunner = NewServiceRunner()
 
 	return nil
 }
 
-func (this *CallbackManager) Run() (err error) {
+func (this *CallbackManager) Run() error {
+	// mark service as started
+	if err := this.ensureStart(); err != nil {
+		return err
+	}
+
+	defer this.markStop()
+
+	// init zookeeper
+	if err := this.connectZookeeper(); err != nil {
+		return err
+	}
+
+	// init kafka sarama consumer
+	if err := this.connectKafka(); err != nil {
+		return err
+	}
+
+callbackManagerFailoverLoop:
 	for {
-		select {
-		case <-this.callbackManagerStopper:
-			return
-		default:
+		if !this.Running() {
+			break callbackManagerFailoverLoop
 		}
 
-		// Register consumer group
-		if exists, err := this.kazooGroup.Exists(); err != nil {
-			seelog.Errorf("Failed to check for existence of consumergroup [err:%s]", err)
-			_ = this.saramaConsumer.Close()
-			_ = this.kazoo.Close()
+		if err := this.registerConsumergroup(); err != nil {
 			return err
-		} else if !exists {
-			seelog.Infof("Consumergroup does not yet exists, creating [consumergroup:%s] ", this.Group)
-			if err := this.kazooGroup.Create(); err != nil {
-				seelog.Errorf("Failed to create consumergroup in zookeeper [err:%s]", err)
-				_ = this.saramaConsumer.Close()
-				_ = this.kazoo.Close()
-				return err
-			}
 		}
+
+		seelog.Infof("Waiting for %v to avoid consumer register rebalance herd",
+			WATCH_INSTANCE_CHANGE_DELAY_TIME)
+		time.Sleep(WATCH_INSTANCE_CHANGE_DELAY_TIME)
 
 		consumers, consumerChanges, err := this.kazooGroup.WatchInstances()
+
 		if err != nil {
-			seelog.Infof("Failed to get list of registered consumer instances [err:%s]", err)
-			return err
+			seelog.Errorf("Failed to get list of registered consumer instances [err:%s]", err)
+			time.Sleep(GET_CONSUMER_LIST_RETRY_TIME)
+			continue
 		}
+
 		seelog.Infof("Currently registered consumers [totalconsumers:%d]", len(consumers))
 
+		// get partitionConsuming assignments
+		// start ServiceRunner of PartitionManager
+		// TODO
 		if err := this.partitionRun(consumers); err != nil {
 			seelog.Errorf("Failed to init partition consumer [err:%s]", err)
-			return err
+			time.Sleep(RUN_PARTITION_MANAGER_RETRY_TIME)
+			continue
 		}
 
-		stopper := make(chan struct{})
+		select {
+		case <-this.WaitForCloseChannel():
+			this.partitionManagerRunner.Close()
+			break callbackManagerFailoverLoop
 
-	partitionManagerRespawnLoop:
-		for {
-			select {
-			case <-this.callbackManagerStopper:
-				close(stopper)
-				return err
-
-			case <-consumerChanges:
-				seelog.Infof("Triggering rebalance due to consumer list change")
-				close(stopper)
-				this.wg.Wait()
-				seelog.Infof("Waiting for 5 seconds to avoid consumer inflight rebalance herd")
-				time.Sleep(5 * time.Second)
-				break partitionManagerRespawnLoop
-			}
+		case <-consumerChanges:
+			seelog.Infof("Triggering rebalance due to consumer list change")
+			this.partitionManagerRunner.Close()
+			seelog.Infof("Waiting for %v to avoid consumer inflight rebalance herd",
+				CONSUMER_LIST_CHANGE_RELOAD_TIME)
+			time.Sleep(CONSUMER_LIST_CHANGE_RELOAD_TIME)
+		case <-this.partitionManagerRunner.WaitForExitChannel():
+			seelog.Warn("PartitionManager unexpectedly stopped")
 		}
-	}
-}
-
-func (this *CallbackManager) Close() error {
-	shutdownError := AlreadyClosing
-	close(this.callbackManagerStopper)
-	this.wg.Wait()
-
-	defer this.kazoo.Close()
-	// sync close partitionManager
-	for _, partitionManager := range this.partitionManagers {
-		partitionManager.Close()
 	}
 
 	// sync close offsetManager
@@ -220,14 +141,21 @@ func (this *CallbackManager) Close() error {
 		seelog.Errorf("Failed closing the offset manager [err:%s]", err)
 	}
 
-	if shutdownError = this.kazooGroupInstance.Deregister(); shutdownError != nil {
-		seelog.Errorf("Failed deregistering consumer instance [err:%s]", shutdownError)
+	// deregister Consumergroup instance from zookeeper
+	if err := this.kazooGroupInstance.Deregister(); err != nil {
+		seelog.Errorf("Failed deregistering consumer instance [err:%s]", err)
 	} else {
 		seelog.Infof("Deregistered consumer instance [instanceid:%s]", this.kazooGroupInstance.ID)
 	}
 
-	if shutdownError = this.saramaConsumer.Close(); shutdownError != nil {
-		seelog.Errorf("Failed closing the Sarama client [err:%s]", shutdownError)
+	// close sarama Consumer
+	if err := this.saramaConsumer.Close(); err != nil {
+		seelog.Errorf("Failed closing the Sarama client [err:%s]", err)
+	}
+
+	// close zookeeper connection
+	if err := this.kazoo.Close(); err != nil {
+		seelog.Errorf("Failed closing the Zookeeper connection [err:%s]", err)
 	}
 
 	return nil
@@ -237,15 +165,64 @@ func (this *CallbackManager) GetOffsetManager() *OffsetManager {
 	return this.offsetManager
 }
 
-func (*CallbackManager) GetKazooGroup() *kazoo.Consumergroup {
+func (this *CallbackManager) GetKazooGroup() *kazoo.Consumergroup {
+	return this.kazooGroup
+}
+
+func (this *CallbackManager) GetKazooGroupInstance() *kazoo.ConsumergroupInstance {
+	return this.kazooGroupInstance
+}
+
+func (this *CallbackManager) GetConsumer() sarama.Consumer {
+	return this.saramaConsumer
+}
+
+func (this *CallbackManager) connectZookeeper() error {
+	var err error
+
+	// zookeeper ConsumerGroup instance initialization
+	if this.kazoo, err = kazoo.NewKazoo(this.config.Zookeepers, this.zookeeperConfig); err != nil {
+		return err
+	}
+	this.kazooGroup = this.kazoo.Consumergroup(this.GroupName)
+	this.kazooGroupInstance = this.kazooGroup.NewInstance()
+
 	return nil
 }
 
-func (*CallbackManager) GetConsumer() *sarama.Consumer {
+func (this *CallbackManager) connectKafka() error {
+	var err error
+
+	// kafka consumer initialization
+	brokers, err := this.kazoo.BrokerList()
+	if err != nil {
+		return err
+	}
+
+	// connect kafka using sarama Consumer
+	if this.saramaConsumer, err = sarama.NewConsumer(brokers, this.saramaConfig); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (this *CallbackManager) partitionRun(consumers kazoo.ConsumergroupInstanceList) (err error) {
+func (this *CallbackManager) registerConsumergroup() error {
+	// Register Consumergroup zk node
+	if exists, err := this.kazooGroup.Exists(); err != nil {
+		seelog.Errorf("Failed to check for existence of consumergroup [err:%s]", err)
+		this.saramaConsumer.Close()
+		this.kazoo.Close()
+		return err
+	} else if !exists {
+		seelog.Infof("Consumergroup does not yet exists, creating [consumergroup:%s] ", this.GroupName)
+		if err := this.kazooGroup.Create(); err != nil {
+			seelog.Errorf("Failed to create consumergroup in zookeeper [err:%s]", err)
+			this.saramaConsumer.Close()
+			this.kazoo.Close()
+			return err
+		}
+	}
 
 	// register new kazoo.ConsumerGroup instance
 	if err := this.kazooGroupInstance.Register(this.Topics); err != nil {
@@ -254,6 +231,12 @@ func (this *CallbackManager) partitionRun(consumers kazoo.ConsumergroupInstanceL
 	} else {
 		seelog.Infof("Consumer instance registered [insatanceid:%s]", this.kazooGroupInstance.ID)
 	}
+
+	return nil
+}
+
+func (this *CallbackManager) partitionRun(consumers kazoo.ConsumergroupInstanceList) error {
+	this.partitionManagers = make([]*PartitionManager, 0)
 
 	for _, topic := range this.Topics {
 		// Fetch a list of partition IDs
@@ -273,27 +256,20 @@ func (this *CallbackManager) partitionRun(consumers kazoo.ConsumergroupInstanceL
 		dividedPartitions := dividePartitionsBetweenConsumers(consumers, partitionLeaders)
 		myPartitions := dividedPartitions[this.kazooGroupInstance.ID]
 
-		// init/run partitionManager
-		for _, partitionManager := range this.partitionManagers {
-			partitionManager.Close()
-		}
-		event := make(chan int)
-
 		for i := 0; i < len(myPartitions); i++ {
-			partitionManager := NewPartitionManager(topic)
-			if err := partitionManager.Init(this.config, topic, int32(i), this); err != nil {
+			partitionManager := NewPartitionManager()
+			if err := partitionManager.Init(this.config, topic, myPartitions[i].ID, this); err != nil {
 				seelog.Criticalf("Init partition manager failed [url:%s][err:%s]", this.Url, err)
 				return err
 			}
 			this.partitionManagers = append(this.partitionManagers, partitionManager)
-			this.wg.Add(1)
-			go func(topic string, idx int) {
-				defer func() {
-					event <- idx
-				}()
-				partitionManager.Run(this.wg, this.callbackManagerStopper)
-			}(topic, i)
 		}
 	}
+
+	this.partitionManagerRunner.RetryTimes = len(this.partitionManagers) * 3
+	if _, err := this.partitionManagerRunner.RunAsync(this.partitionManagers); err != nil {
+		return err
+	}
+
 	return nil
 }

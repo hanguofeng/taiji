@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"reflect"
+	"sync"
 )
 
 type Runnable interface {
@@ -11,89 +12,18 @@ type Runnable interface {
 }
 
 type ServiceRunner struct {
+	*StartStopControl
 	RetryTimes int
-	started    bool
-	stopper    chan struct{}
 }
 
-func NewServiceRunner(args ...int) *ServiceRunner {
-	var retryTimes int
-
-	if len(args) > 0 {
-		retryTimes = args[0]
-	} else {
-		retryTimes = 0
-	}
-
-	return &ServiceRunner{
-		RetryTimes: retryTimes,
-		stopper:    make(chan struct{}),
-	}
-}
-
-func (sr *ServiceRunner) run(services []Runnable, daemon bool) (<-chan error, error) {
-	if sr.started {
-		return nil, errors.New("ServiceRunner already started")
-	}
-
-	sr.started = true
-	event := make(chan int)
-	errorEvent := make(chan error, sr.RetryTimes+1)
-
-	defer func() {
-		sr.started = false
-	}()
-
-	servicesWatcher := func(idx int) {
-		defer func() {
-			event <- idx
-		}()
-		err := services[idx].Run()
-		errorEvent <- err
-	}
-
-	controlRoutine := func() {
-		leftRetryTimes := sr.RetryTimes
-
-	serviceRespawnLoop:
-		for {
-			select {
-			case <-sr.stopper:
-				// close each runnable
-				for _, service := range services {
-					service.Close()
-				}
-				break serviceRespawnLoop
-			case idx := <-event:
-				if leftRetryTimes > 0 {
-					go servicesWatcher(idx)
-				}
-			}
-
-			if leftRetryTimes--; leftRetryTimes <= 0 {
-				// not applicable for another respawn
-				break serviceRespawnLoop
-			}
-		}
-	}
-
-	for idx, _ := range services {
-		go servicesWatcher(idx)
-	}
-
-	if daemon {
-		go controlRoutine()
-	} else {
-		controlRoutine()
-	}
-
-	return errorEvent, nil
+func NewServiceRunner() *ServiceRunner {
+	return &ServiceRunner{}
 }
 
 func (sr *ServiceRunner) Run(rawServices interface{}) (<-chan error, error) {
 	services, err := sr.sanitizeInput(rawServices)
 
-	if nil != err {
+	if err != nil {
 		return nil, err
 	}
 
@@ -106,7 +36,7 @@ func (sr *ServiceRunner) Run(rawServices interface{}) (<-chan error, error) {
 func (sr *ServiceRunner) RunAsync(rawServices interface{}) (<-chan error, error) {
 	services, err := sr.sanitizeInput(rawServices)
 
-	if nil != err {
+	if err != nil {
 		return nil, err
 	}
 
@@ -114,11 +44,6 @@ func (sr *ServiceRunner) RunAsync(rawServices interface{}) (<-chan error, error)
 		services,
 		true, // non-blocking, daemonize
 	)
-}
-
-func (sr *ServiceRunner) Close() error {
-	close(sr.stopper)
-	return nil
 }
 
 func (sr *ServiceRunner) sanitizeInput(services interface{}) ([]Runnable, error) {
@@ -166,4 +91,67 @@ func (sr *ServiceRunner) sanitizeInput(services interface{}) ([]Runnable, error)
 	} else {
 		return runnable, err
 	}
+}
+
+func (sr *ServiceRunner) run(services []Runnable, daemon bool) (<-chan error, error) {
+	if sr.Running() {
+		return nil, errors.New("Service is running")
+	}
+
+	sr.markStart()
+
+	event := make(chan int)
+	errorEvent := make(chan error, sr.RetryTimes+1)
+	servicesWatcher := func(idx int) {
+		defer func() {
+			event <- idx
+		}()
+		err := services[idx].Run()
+		errorEvent <- err
+	}
+	controlRoutine := func() {
+		// flag we are done exiting
+		defer sr.markStop()
+
+		leftRetryTimes := sr.RetryTimes
+
+	serviceRespawnLoop:
+		for {
+			select {
+			case <-sr.WaitForCloseChannel():
+				// close each runnable
+				wg := &sync.WaitGroup{}
+				for _, service := range services {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						service.Close()
+					}()
+				}
+				wg.Wait()
+				break serviceRespawnLoop
+			case idx := <-event:
+				if leftRetryTimes > 0 {
+					go servicesWatcher(idx)
+				}
+			}
+
+			if leftRetryTimes--; leftRetryTimes <= 0 {
+				// not applicable for another respawn
+				break serviceRespawnLoop
+			}
+		}
+	}
+
+	for idx, _ := range services {
+		go servicesWatcher(idx)
+	}
+
+	if daemon {
+		go controlRoutine()
+	} else {
+		controlRoutine()
+	}
+
+	return errorEvent, nil
 }
