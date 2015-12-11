@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Shopify/sarama"
+	"github.com/stretchr/testify/assert"
 )
 
 type PartitionConsumerMock struct {
@@ -58,10 +59,8 @@ func (*PartitionConsumerMock) HighWaterMarkOffset() int64 {
 
 func TestSequentialArbiter(t *testing.T) {
 	t.Log("Allocated new SequentialArbiter")
-	arbiter := NewSequentialArbiter()
-	if arbiter == nil {
-		t.Error("Create SequentialArbiter failed")
-	}
+	arbiter, err := NewArbiter("Sequential")
+	assert.Nil(t, err, "Create SequentialArbiter failed")
 
 	callbackConfig := &CallbackItemConfig{
 		Url: "http://invalid_url_that_should_never_deliver",
