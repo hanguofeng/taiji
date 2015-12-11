@@ -119,9 +119,7 @@ func (ht *HTTPTransporter) delivery(message *sarama.ConsumerMessage, retryTime i
 
 	// deserialize message
 	switch ht.Serializer {
-	case "":
-		fallthrough
-	case "raw":
+	case "", "raw":
 		messageData.Data = string(message.Value)
 	case "json":
 		fallthrough

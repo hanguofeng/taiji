@@ -63,9 +63,7 @@ func (sr *ServiceRunner) sanitizeInput(services interface{}) ([]Runnable, error)
 			servicesValue := reflect.ValueOf(services)
 
 			switch servicesValue.Kind() {
-			case reflect.Array:
-				fallthrough
-			case reflect.Slice:
+			case reflect.Array, reflect.Slice:
 				break
 			default:
 				return nil, errors.New("Invalid input, must be array")
