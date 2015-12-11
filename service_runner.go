@@ -17,7 +17,9 @@ type ServiceRunner struct {
 }
 
 func NewServiceRunner() *ServiceRunner {
-	return &ServiceRunner{}
+	return &ServiceRunner{
+		StartStopControl: &StartStopControl{},
+	}
 }
 
 func (sr *ServiceRunner) Run(rawServices interface{}) (<-chan error, error) {

@@ -43,7 +43,9 @@ type CallbackManager struct {
 }
 
 func NewCallbackManager() *CallbackManager {
-	return &CallbackManager{}
+	return &CallbackManager{
+		StartStopControl: &StartStopControl{},
+	}
 }
 
 func (this *CallbackManager) Init(config *CallbackItemConfig) error {
