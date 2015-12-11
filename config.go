@@ -14,17 +14,15 @@ import (
 )
 
 const (
-	CFG_DEFAULT_TIMEOUT            = time.Second
-	CFG_DEFAULT_FAILED_SLEEP       = time.Second
-	CFG_MIN_FAILED_SLEEP           = time.Second
-	CFG_DEFAULT_PROCESSING_TIMEOUT = 10 * time.Second
-	CFG_MIN_PROCESSING_TIMEOUT     = 10 * time.Second
-	CFG_DEFAULT_COMMIT_INTERVAL    = 10 * time.Second
-	CFG_MIN_COMMIT_INTERVAL        = 1 * time.Second
-	CFG_MIN_STAT_SERVER_PORT       = 8000
-	CFG_MAX_STAT_SERVER_PORT       = 10000
-	DEFAULT_LOG_COLLECT_RATIO      = 20
+	CFG_DEFAULT_TIMEOUT               = time.Second
+	CFG_DEFAULT_FAILED_SLEEP          = time.Second
+	CFG_MIN_FAILED_SLEEP              = time.Second
+	CFG_DEFAULT_PROCESSING_TIMEOUT    = 10 * time.Second
+	CFG_MIN_PROCESSING_TIMEOUT        = 10 * time.Second
+	CFG_MIN_STAT_SERVER_PORT          = 8000
+	CFG_MAX_STAT_SERVER_PORT          = 10000
 	CFG_DEFAULT_MASTER_OFFSET_STORAGE = "zookeeper"
+	DEFAULT_LOG_COLLECT_RATIO         = 20
 )
 
 type MapConfig map[string]interface{}
@@ -67,8 +65,6 @@ type ServiceConfig struct {
 	LogFile            string               `json:"log_file"`
 	Callbacks          []CallbackItemConfig `json:"consumer_groups"`
 	ConnectionPoolSize int                  `json:"connection_pool_size"`
-	CommitInterval     time.Duration        `json:"commit_interval"`
-	CommitIntervalStr  string               `json:"null,omitifempty"`
 	StatServerPort     int                  `json:"stat_server_port"`
 }
 
@@ -89,22 +85,6 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 
 	if c.ConnectionPoolSize <= 0 {
 		c.ConnectionPoolSize = http.DefaultMaxIdleConnsPerHost
-	}
-
-	c.CommitInterval, err = time.ParseDuration(c.CommitIntervalStr)
-	if err != nil {
-		seelog.Warnf("server config commit_interval error(%s),using default.config value:%s",
-			err.Error(), c.CommitIntervalStr)
-
-		c.CommitInterval = CFG_DEFAULT_COMMIT_INTERVAL
-	}
-
-	if c.CommitInterval < CFG_MIN_COMMIT_INTERVAL {
-		seelog.Warnf("server config commit_interval too small,using min.config value:%s,%s",
-			c.CommitInterval, c.CommitIntervalStr)
-
-		c.CommitInterval = CFG_MIN_COMMIT_INTERVAL
-		c.CommitIntervalStr = fmt.Sprintf("%dms", CFG_MIN_COMMIT_INTERVAL/time.Millisecond)
 	}
 
 	if c.StatServerPort != 0 && (c.StatServerPort < CFG_MIN_STAT_SERVER_PORT || c.StatServerPort >= CFG_MAX_STAT_SERVER_PORT) {
