@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"time"
+	"runtime"
 )
 
 type StartStopControl struct {
@@ -62,16 +62,16 @@ func (ssc *StartStopControl) WaitForExit() {
 
 func (ssc *StartStopControl) WaitForCloseChannel() <-chan struct{} {
 	// TODO, use atomic semaphore wait
-	if ssc.stopper != nil {
-		time.Sleep(1 * time.Second)
+	if ssc.stopper == nil {
+		runtime.Gosched()
 	}
 	return ssc.stopper
 }
 
 func (ssc *StartStopControl) WaitForExitChannel() <-chan struct{} {
 	// TODO, use atomic semaphore wait
-	if ssc.stopped != nil {
-		time.Sleep(1 * time.Second)
+	if ssc.stopped == nil {
+		runtime.Gosched()
 	}
 	return ssc.stopped
 }
@@ -150,7 +150,7 @@ func (ssc *StartStopControl) Ready() error {
 func (ssc *StartStopControl) ReadyChannel() <-chan struct{} {
 	// TODO, use atomic semaphore wait
 	for ssc.ready == nil {
-		time.Sleep(1 * time.Second)
+		runtime.Gosched()
 	}
 
 	return ssc.ready
