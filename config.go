@@ -24,6 +24,7 @@ const (
 	CFG_MIN_STAT_SERVER_PORT       = 8000
 	CFG_MAX_STAT_SERVER_PORT       = 10000
 	DEFAULT_LOG_COLLECT_RATIO      = 20
+	CFG_DEFAULT_MASTER_OFFSET_STORAGE = "zookeeper"
 )
 
 type MapConfig map[string]interface{}
@@ -170,6 +171,10 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 
 			callback.ProcessingTimeout = CFG_MIN_PROCESSING_TIMEOUT
 			callback.ProcessingTimeoutStr = fmt.Sprintf("%dms", CFG_MIN_PROCESSING_TIMEOUT/time.Millisecond)
+		}
+
+		if callback.OffsetConfig.StorageName == "" {
+			callback.OffsetConfig.StorageName = CFG_DEFAULT_MASTER_OFFSET_STORAGE
 		}
 
 		if callback.LogCollectRatio <= 0 {
