@@ -5,8 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	"reflect"
+
+	"github.com/cihub/seelog"
 )
 
 const CONFIG_ZOOKEEPER_OFFSET_STORAGE_COMMIT_INTERVAL = "commit_interval"

@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"errors"
+
 	"github.com/cihub/seelog"
 )
 

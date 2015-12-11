@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/Shopify/sarama"
 	"testing"
+
+	"github.com/Shopify/sarama"
 )
 
 type PartitionConsumerMock struct {
