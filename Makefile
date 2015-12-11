@@ -39,4 +39,9 @@ test:
 	@echo -e "\033[32;1mPerforming tests\033[0m"
 	godep go test -v
 
-.PHONY: build dist clean save test
+format:
+	@echo -e "\033[32;1mFormatting code\033[0m"
+	gofmt -w *.go
+	goimports -w *.go
+
+.PHONY: build dist clean save test format
