@@ -13,6 +13,10 @@
 			"Rev": "0f89bb749d6163878682e320cd7c491a1680de6b"
 		},
 		{
+			"ImportPath": "github.com/davecgh/go-spew/spew",
+			"Rev": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
+		},
+		{
 			"ImportPath": "github.com/eapache/go-resiliency/breaker",
 			"Comment": "v1.0.0-3-gf341fb4",
 			"Rev": "f341fb4dca45128e4aa86389fa6a675d55fe25e1"
@@ -31,8 +35,17 @@
 			"Rev": "3e5c38b8b170916b332a5ccb25f921314b98ba01"
 		},
 		{
+			"ImportPath": "github.com/pmezard/go-difflib/difflib",
+			"Rev": "e8554b8641db39598be7f6342874b958f12ae1d4"
+		},
+		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
 			"Rev": "218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f"
+		},
+		{
+			"ImportPath": "github.com/stretchr/testify/assert",
+			"Comment": "v1.0-88-ge3a8ff8",
+			"Rev": "e3a8ff8ce36581f87a15341206f205b1da467059"
 		},
 		{
 			"ImportPath": "github.com/wvanbergen/kazoo-go",
