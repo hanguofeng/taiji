@@ -15,7 +15,6 @@ import (
 )
 
 type Server struct {
-	*StartStopControl
 	callbackManagers      []*CallbackManager
 	callbackManagerRunner *ServiceRunner
 	adminServer           *http.Server
@@ -117,9 +116,6 @@ func (this *Server) Run() error {
 	select {
 	case <-this.callbackManagerRunner.WaitForExitChannel():
 		seelog.Critical("Pusher have one CallbackManager unexpected stopped, stopping server")
-	case <-this.WaitForCloseChannel():
-		seelog.Info("Pusher server close method called")
-		this.callbackManagerRunner.Close()
 	case <-c:
 		seelog.Info("Pusher catch exit signal")
 		this.callbackManagerRunner.Close()
