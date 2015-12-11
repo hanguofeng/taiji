@@ -12,20 +12,16 @@ const (
 )
 
 var (
-	configFile     string
-	version        bool
-	testMode       bool
-	statPort       int
-	commitInterval int
-	gitCommit      string
+	configFile string
+	version    bool
+	testMode   bool
+	gitCommit  string
 )
 
 func init() {
 	flag.StringVar(&configFile, "c", "config.json", "the config file")
 	flag.BoolVar(&version, "V", false, "show version")
 	flag.BoolVar(&testMode, "t", false, "test config")
-	flag.IntVar(&statPort, "s", -1, "set stat server port")
-	flag.IntVar(&commitInterval, "i", 10, "set offset commit interval")
 }
 
 func getVersion() string {
@@ -47,4 +43,8 @@ func main() {
 	}
 
 	seelog.Info("Dummy main stub")
+
+	// server Init
+	// server Run
+	// signal handling, trigger server Close
 }
