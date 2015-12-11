@@ -58,7 +58,7 @@ func (*PartitionConsumerMock) HighWaterMarkOffset() int64 {
 func TestSequentialArbiter(t *testing.T) {
 	t.Log("Allocated new SequentialArbiter")
 	arbiter := NewSequentialArbiter()
-	if nil == arbiter {
+	if arbiter == nil {
 		t.Error("Create SequentialArbiter failed")
 	}
 
@@ -72,8 +72,10 @@ func TestSequentialArbiter(t *testing.T) {
 	}
 	partitionConsumerMock.Init()
 	manager := &PartitionManager{
-		consumer: partitionConsumerMock,
-		manager:  callbackManager,
+		partitionConsumer: &PartitionConsumer{
+			consumer: partitionConsumerMock,
+		},
+		manager: callbackManager,
 	}
 	t.Log("Initializing SequentialArbiter")
 	arbiter.Init(callbackConfig, arbiterConfig, manager)
@@ -81,13 +83,16 @@ func TestSequentialArbiter(t *testing.T) {
 	go arbiter.Run()
 	defer arbiter.Close()
 	defer manager.GetConsumer().Close()
+	if err := arbiter.Ready(); err != nil {
+		t.Fatalf("Arbiter start failed [err:%s]", err)
+	}
 	messages := arbiter.MessageChannel()
 	offsets := arbiter.OffsetChannel()
 	lastOffset := int64(-6)
 	lastCommit := int64(-6)
 
 	// first try loop get 3 messages for test
-	for i := 0; i != 6; i++ {
+	for i := 0; i != 3; i++ {
 		select {
 		case message := <-messages:
 			if message.Offset != lastOffset+1 {
@@ -98,9 +103,16 @@ func TestSequentialArbiter(t *testing.T) {
 				t.Fatalf("Offset commit is not sequential [lastCommit:%d][lastOffset:%d]",
 					lastCommit, lastOffset)
 			}
+			t.Logf("Message received [offset:%d]", message.Offset)
 			lastOffset = message.Offset
-		case <-time.After(time.Duration(1) * time.Second):
-			t.Logf("After 5 seconds, no message is received, SequentialArbiter take effect")
+		}
+
+		select {
+		case message := <-messages:
+			t.Fatalf("Ready two message without offset commit [offset:%d]", message.Offset)
+		default:
+			t.Logf("No message is received before commit offset, SequentialArbiter take effect, sending offset [offset:%d]",
+				lastOffset)
 			offsets <- lastOffset
 			lastCommit = lastOffset
 		}

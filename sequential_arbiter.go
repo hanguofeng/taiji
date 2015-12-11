@@ -6,16 +6,24 @@ import (
 )
 
 type SequentialArbiter struct {
-	offsets       chan int64
-	messages      chan *sarama.ConsumerMessage
-	manager       *PartitionManager
+	*StartStopControl
+
+	// input/output
+	offsets  chan int64
+	messages chan *sarama.ConsumerMessage
+
+	// parent
+	manager *PartitionManager
+
+	// config
 	config        *CallbackItemConfig
 	arbiterConfig ArbiterConfig
-	stopper       chan struct{}
 }
 
 func NewSequentialArbiter() Arbiter {
-	return &SequentialArbiter{}
+	return &SequentialArbiter{
+		StartStopControl: &StartStopControl{},
+	}
 }
 
 func (sa *SequentialArbiter) OffsetChannel() chan<- int64 {
@@ -30,25 +38,32 @@ func (sa *SequentialArbiter) Init(config *CallbackItemConfig, arbiterConfig Arbi
 	sa.manager = manager
 	sa.config = config
 	sa.arbiterConfig = arbiterConfig
-	sa.stopper = make(chan struct{})
-
-	// buffer only one message
-	sa.offsets = make(chan int64, 1)
-	sa.messages = make(chan *sarama.ConsumerMessage, 1)
 
 	return nil
 }
 
-func (sa *SequentialArbiter) Run() {
+func (sa *SequentialArbiter) Run() error {
+	if err := sa.ensureStart(); err != nil {
+		return err
+	}
+	defer sa.markStop()
+	sa.initReady()
 	consumer := sa.manager.GetConsumer()
 
+	// buffer only one message
+	sa.offsets = make(chan int64)
+	sa.messages = make(chan *sarama.ConsumerMessage)
+
 	// cold start trigger
-	sa.offsets <- int64(-1)
+	go func() {
+		sa.offsets <- int64(-1)
+	}()
+	sa.markReady()
 
 arbiterLoop:
 	for {
 		select {
-		case <-sa.stopper:
+		case <-sa.WaitForCloseChannel():
 			seelog.Debugf("Stop event triggered [url:%s]", sa.config.Url)
 			break arbiterLoop
 		case err := <-consumer.Errors():
@@ -63,19 +78,26 @@ arbiterLoop:
 					sa.manager.Topic, sa.manager.Partition, offset)
 			}
 			select {
-			case <-sa.stopper:
+			case <-sa.WaitForCloseChannel():
 				seelog.Debugf("Stop event triggered [url:%s]", sa.config.Url)
 				break arbiterLoop
 			case message := <-consumer.Messages():
 				seelog.Debugf("Read message from PartitionConsumer [topic:%s][partition:%d][url:%s][offset:%d]",
 					message.Topic, message.Partition, sa.config.Url, message.Offset)
 				// feed message to transporter
-				sa.messages <- message
+				select {
+				case <-sa.WaitForCloseChannel():
+					seelog.Debugf("Stop event triggered [url:%s]", sa.config.Url)
+					break arbiterLoop
+				case sa.messages <- message:
+				}
 			}
 		}
 	}
+
+	return nil
 }
 
-func (sa *SequentialArbiter) Close() {
-	close(sa.stopper)
+func init() {
+	RegisterArbiter("Sequential", NewSequentialArbiter)
 }
