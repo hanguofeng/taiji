@@ -3,12 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Shopify/sarama"
-	"github.com/cihub/seelog"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/Shopify/sarama"
+	"github.com/cihub/seelog"
 )
 
 const HTTP_FORM_ENCODING = "application/x-www-form-urlencoded"

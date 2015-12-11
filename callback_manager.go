@@ -1,10 +1,11 @@
 package main
 
 import (
+	"time"
+
 	"github.com/Shopify/sarama"
 	"github.com/cihub/seelog"
 	"github.com/wvanbergen/kazoo-go"
-	"time"
 )
 
 const (

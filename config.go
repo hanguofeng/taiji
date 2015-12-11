@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"errors"
+
 	"github.com/cihub/seelog"
 )
 

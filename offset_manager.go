@@ -2,6 +2,9 @@ package main
 
 import (
 	"sync"
+
+	"errors"
+	"github.com/cihub/seelog"
 )
 
 type OffsetMap map[string]map[int32]int64

@@ -3,9 +3,10 @@ package main
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"github.com/wvanbergen/kazoo-go"
 	"io"
 	"sort"
+
+	"github.com/wvanbergen/kazoo-go"
 )
 
 func getGroupName(url string) string {

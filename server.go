@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/Shopify/sarama"
-	"github.com/cihub/seelog"
 	"log"
 	"net"
 	"net/http"
@@ -11,6 +9,9 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/Shopify/sarama"
+	"github.com/cihub/seelog"
 )
 
 type Server struct {

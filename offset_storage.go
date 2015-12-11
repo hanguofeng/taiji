@@ -2,10 +2,12 @@ package main
 
 import (
 	"errors"
-	"github.com/Shopify/sarama"
-	"github.com/cihub/seelog"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/Shopify/sarama"
 )
 
 type OffsetStorage interface {

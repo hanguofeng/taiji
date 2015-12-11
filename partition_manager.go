@@ -3,9 +3,6 @@ package main
 import (
 	"github.com/Shopify/sarama"
 	"github.com/cihub/seelog"
-	"github.com/wvanbergen/kazoo-go"
-	"sync"
-	"time"
 )
 
 type PartitionManager struct {
