@@ -116,7 +116,7 @@ callbackManagerFailoverLoop:
 
 		// get partitionConsuming assignments
 		// start ServiceRunner of PartitionManager
-		// TODO
+		// TODO refactor this
 		if err := this.partitionRun(consumers); err != nil {
 			seelog.Errorf("Failed to init partition consumer [err:%s]", err)
 			time.Sleep(RUN_PARTITION_MANAGER_RETRY_TIME)

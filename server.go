@@ -86,7 +86,7 @@ func (this *Server) Init(config *ServiceConfig) error {
 }
 
 func (this *Server) Validate() error {
-	// TODO
+	// TODO add validate script
 	return nil
 }
 
