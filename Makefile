@@ -37,7 +37,8 @@ save:
 
 test:
 	@echo -e "\033[32;1mPerforming tests\033[0m"
-	godep go test -v
+	godep go test -v -cover -coverprofile .coverage
+	go tool cover -html .coverage
 
 format:
 	@echo -e "\033[32;1mFormatting code\033[0m"
