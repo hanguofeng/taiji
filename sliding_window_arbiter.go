@@ -101,9 +101,6 @@ arbiterLoop:
 		case <-swa.WaitForCloseChannel():
 			seelog.Debugf("Stop event triggered [url:%s]", swa.config.Url)
 			break arbiterLoop
-		case err := <-consumer.Errors():
-			seelog.Errorf("Read error from PartitionConsumer [topic:%s][partition:%d][url:%s][err:%s]",
-				err.Topic, err.Partition, swa.config.Url, err.Err.Error())
 		case offset := <-swa.offsets:
 			seelog.Debugf("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
 				swa.manager.Topic, swa.manager.Partition, swa.config.Url, offset)

@@ -64,9 +64,6 @@ arbiterLoop:
 		case <-ua.WaitForCloseChannel():
 			seelog.Debugf("Stop event triggered [url:%s]", ua.config.Url)
 			break arbiterLoop
-		case err := <-consumer.Errors():
-			seelog.Errorf("Read error from PartitionConsumer [topic:%s][partition:%d][url:%s][err:%s]",
-				err.Topic, err.Partition, ua.config.Url, err.Err.Error())
 		case offset := <-ua.offsets:
 			seelog.Debugf("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
 				ua.manager.Topic, ua.manager.Partition, ua.config.Url, offset)
