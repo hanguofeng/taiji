@@ -122,13 +122,13 @@ func (sr *ServiceRunner) run(services []Runnable, daemon bool) (<-chan error, er
 			select {
 			case <-sr.WaitForCloseChannel():
 				// close each runnable
-				wg := &sync.WaitGroup{}
+				wg := sync.WaitGroup{}
 				for _, service := range services {
 					wg.Add(1)
-					go func() {
+					go func(service Runnable) {
 						defer wg.Done()
 						service.Close()
-					}()
+					}(service)
 				}
 				wg.Wait()
 				break serviceRespawnLoop
