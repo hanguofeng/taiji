@@ -35,8 +35,8 @@ save:
 	godep save -r
 	godep save
 
-test: build
+test:
 	@echo -e "\033[32;1mPerforming tests\033[0m"
-	go test -v
+	godep go test -v
 
 .PHONY: build dist clean save test
