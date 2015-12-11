@@ -19,7 +19,7 @@ type HTTPTransporter struct {
 	Serializer        string
 	ContentType       string
 	config            *CallbackItemConfig
-	transporterConfig *TransporterConfig
+	transporterConfig TransporterConfig
 	manager           *PartitionManager
 }
 
@@ -32,7 +32,11 @@ type MessageBody struct {
 	ContentType  string `json:"ContentType"`
 }
 
-func (ht *HTTPTransporter) Init(config *CallbackItemConfig, transporterConfig *TransporterConfig, manager *PartitionManager) {
+func NewHTTPTransporter() Transporter {
+	return &HTTPTransporter{}
+}
+
+func (ht *HTTPTransporter) Init(config *CallbackItemConfig, transporterConfig TransporterConfig, manager *PartitionManager) error {
 	ht.Callback = &WorkerCallback{
 		Url:          config.Url,
 		RetryTimes:   config.RetryTimes,
@@ -44,9 +48,11 @@ func (ht *HTTPTransporter) Init(config *CallbackItemConfig, transporterConfig *T
 	ht.ContentType = config.ContentType
 	ht.transporterConfig = transporterConfig
 	ht.manager = manager
+
+	return nil
 }
 
-func (ht *HTTPTransporter) Run() {
+func (ht *HTTPTransporter) Run() error {
 	arbiter := ht.manager.GetArbiter()
 	messages := arbiter.MessageChannel()
 	offsets := arbiter.OffsetChannel()
@@ -101,6 +107,8 @@ func (ht *HTTPTransporter) Run() {
 	}
 
 	seelog.Debug("HTTPTransporter exited [topic:%s][partition:%d][url:%s]", ht.manager.Topic, ht.manager.Partition, ht.Callback.Url)
+
+	return nil
 }
 
 func (ht *HTTPTransporter) delivery(message *sarama.ConsumerMessage, retryTime int) bool {
@@ -186,4 +194,8 @@ func (ht *HTTPTransporter) delivery(message *sarama.ConsumerMessage, retryTime i
 	}
 
 	return success
+}
+
+func init() {
+	RegisterTransporter("HTTP", NewHTTPTransporter)
 }
