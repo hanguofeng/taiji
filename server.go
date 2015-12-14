@@ -34,8 +34,8 @@ func GetServer() *Server {
 	return serverInstance
 }
 
-func (this *Server) Init(config *ServiceConfig) error {
-	config, err := LoadConfigFile(configFile)
+func (this *Server) Init(configFileName string) error {
+	config, err := LoadConfigFile(configFileName)
 
 	if err != nil {
 		seelog.Criticalf("Load Config err [err:%s]", err.Error())
@@ -84,9 +84,9 @@ func (this *Server) Init(config *ServiceConfig) error {
 	return nil
 }
 
-func (this *Server) Validate() error {
-	// TODO add validate script
-	return nil
+func (this *Server) Validate(configFileName string) error {
+	_, err := LoadConfigFile(configFileName)
+	return err
 }
 
 func (this *Server) Run() error {

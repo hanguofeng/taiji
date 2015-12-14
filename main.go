@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 
+	"os"
+
 	"github.com/cihub/seelog"
 )
 
@@ -42,9 +44,30 @@ func main() {
 		return
 	}
 
-	seelog.Info("Dummy main stub")
+	server := GetServer()
+
+	if testMode {
+		if err := server.Validate(configFile); err != nil {
+			fmt.Println("Invalid config, err: %v", err)
+			os.Exit(-1)
+			return
+		} else {
+			fmt.Println("Config is valid")
+			return
+		}
+	}
 
 	// server Init
+	if err := server.Init(configFile); err != nil {
+		fmt.Println("Invalid config, err: %v", err)
+		os.Exit(-1)
+		return
+	}
+
 	// server Run
-	// signal handling, trigger server Close
+	if err := server.Run(); err != nil {
+		fmt.Println("Pusher exit unexpectedly, err: %v", err)
+		os.Exit(-1)
+		return
+	}
 }
