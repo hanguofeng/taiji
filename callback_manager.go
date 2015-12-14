@@ -140,18 +140,18 @@ callbackManagerFailoverLoop:
 		case <-this.partitionManagerRunner.WaitForExitChannel():
 			seelog.Warn("PartitionManager unexpectedly stopped")
 		}
+
+		// deregister Consumergroup instance from zookeeper
+		if err := this.kazooGroupInstance.Deregister(); err != nil {
+			seelog.Errorf("Failed deregistering consumer instance [err:%s]", err)
+		} else {
+			seelog.Infof("Deregistered consumer instance [instanceId:%s]", this.kazooGroupInstance.ID)
+		}
 	}
 
 	// sync close offsetManager
 	if err := this.offsetManager.Close(); err != nil {
 		seelog.Errorf("Failed closing the offset manager [err:%s]", err)
-	}
-
-	// deregister Consumergroup instance from zookeeper
-	if err := this.kazooGroupInstance.Deregister(); err != nil {
-		seelog.Errorf("Failed deregistering consumer instance [err:%s]", err)
-	} else {
-		seelog.Infof("Deregistered consumer instance [instanceid:%s]", this.kazooGroupInstance.ID)
 	}
 
 	// close sarama Consumer
