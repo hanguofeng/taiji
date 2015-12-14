@@ -106,7 +106,7 @@ func (ht *HTTPTransporter) Run() error {
 			message.Topic, message.Partition, ht.Callback.Url, message.Offset, rpcStopTime.Sub(rpcStartTime).Seconds()*1000)
 	}
 
-	seelog.Debug("HTTPTransporter exited [topic:%s][partition:%d][url:%s]", ht.manager.Topic, ht.manager.Partition, ht.Callback.Url)
+	seelog.Debugf("HTTPTransporter exited [topic:%s][partition:%d][url:%s]", ht.manager.Topic, ht.manager.Partition, ht.Callback.Url)
 
 	return nil
 }
