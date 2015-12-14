@@ -10,6 +10,7 @@ import (
 type Transporter interface {
 	Init(config *CallbackItemConfig, transporterConfig TransporterConfig, manager *PartitionManager) error
 	Run() error
+	Close() error
 }
 
 type WorkerCallback struct {

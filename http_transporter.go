@@ -111,6 +111,11 @@ func (ht *HTTPTransporter) Run() error {
 	return nil
 }
 
+func (ht *HTTPTransporter) Close() error {
+	// dummy
+	return nil
+}
+
 func (ht *HTTPTransporter) delivery(message *sarama.ConsumerMessage, retryTime int) bool {
 	client := &http.Client{Transport: GetServer().GetHttpTransport()}
 	client.Timeout = ht.Callback.Timeout
