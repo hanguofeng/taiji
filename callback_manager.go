@@ -92,6 +92,8 @@ func (this *CallbackManager) Run() error {
 		return err
 	}
 
+	go this.offsetManager.Run()
+
 callbackManagerFailoverLoop:
 	for {
 		if !this.Running() {
