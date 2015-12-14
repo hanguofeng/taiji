@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -10,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Shopify/sarama"
 	"github.com/cihub/seelog"
 )
 
@@ -54,7 +52,7 @@ func (this *Server) Init(configFileName string) error {
 	}
 
 	// init sarama logger
-	sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
+	// sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
 
 	// init http transport
 	this.httpTransport = &http.Transport{
