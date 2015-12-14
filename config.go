@@ -22,6 +22,8 @@ const (
 	CFG_MIN_STAT_SERVER_PORT          = 8000
 	CFG_MAX_STAT_SERVER_PORT          = 10000
 	CFG_DEFAULT_MASTER_OFFSET_STORAGE = "zookeeper"
+	CFG_DEFAULT_ARBITER               = "sequential"
+	CFG_DEFAULT_TRANSPORTER           = "http"
 	DEFAULT_LOG_COLLECT_RATIO         = 20
 )
 
@@ -155,6 +157,14 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 
 		if callback.OffsetConfig.StorageName == "" {
 			callback.OffsetConfig.StorageName = CFG_DEFAULT_MASTER_OFFSET_STORAGE
+		}
+
+		if callback.ArbiterName == "" {
+			callback.ArbiterName = CFG_DEFAULT_ARBITER
+		}
+
+		if callback.TransporterName == "" {
+			callback.TransporterName = CFG_DEFAULT_TRANSPORTER
 		}
 
 		if callback.LogCollectRatio <= 0 {
