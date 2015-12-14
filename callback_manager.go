@@ -59,6 +59,7 @@ func (this *CallbackManager) Init(config *CallbackItemConfig) error {
 	this.GroupName = getGroupName(this.Url)
 	this.saramaConfig = sarama.NewConfig()
 	this.zookeeperConfig = kazoo.NewConfig()
+	this.zookeeperConfig.Chroot = config.ZkPath
 	this.saramaConfig.ClientID = this.GroupName
 
 	// init OffsetManager
