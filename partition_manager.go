@@ -101,7 +101,10 @@ func (this *PartitionManager) Run() error {
 	}
 	this.transporterRunner.RetryTimes = len(this.transporter) * 3
 	this.transporterRunner.Prepare()
-	this.transporterRunner.RunAsync(this.transporter)
+	if _, err := this.transporterRunner.RunAsync(this.transporter); err != nil {
+		seelog.Errorf("Transporter start failed [err:%v]", err)
+		return err
+	}
 	defer this.transporterRunner.Close()
 
 	select {
