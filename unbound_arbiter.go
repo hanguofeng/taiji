@@ -86,14 +86,11 @@ func (ua *UnboundArbiter) Run() error {
 					if offset == offsetBase {
 						// rebase
 						advanceCount := 0
-						if len(offsetWindow) > 1 {
-							for advanceCount, _ = range offsetWindow {
-								if !offsetWindow[advanceCount] {
-									break
-								}
+
+						for advanceCount = 0; advanceCount != len(offsetWindow); advanceCount++ {
+							if !offsetWindow[advanceCount] {
+								break
 							}
-						} else {
-							advanceCount = 1
 						}
 
 						// trigger offset commit
