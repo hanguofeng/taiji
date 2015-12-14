@@ -93,7 +93,7 @@ func (ht *HTTPTransporter) Run() error {
 			seelog.Errorf(
 				"Retry delivery after %s due to delivery retryTime exceeded [topic:%s][partition:%d][url:%s][offset:%d][retryTimes:%d][bypassFailed:%t][failedSleep:%.2fms]",
 				ht.Callback.FailedSleep.String(), message.Topic, message.Partition, ht.Callback.Url, message.Offset, ht.Callback.RetryTimes, ht.Callback.BypassFailed,
-				ht.Callback.FailedSleep.Seconds()/1000)
+				ht.Callback.FailedSleep.Seconds()*1000)
 
 			// wait for FailedSleep times for another retry round
 			time.Sleep(ht.Callback.FailedSleep)
