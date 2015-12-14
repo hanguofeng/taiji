@@ -91,6 +91,8 @@ arbiterLoop:
 		}
 	}
 
+	close(sa.messages)
+
 	return nil
 }
 

@@ -111,6 +111,8 @@ arbiterLoop:
 		}
 	}
 
+	close(ua.messages)
+
 	return nil
 }
 

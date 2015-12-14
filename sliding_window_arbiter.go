@@ -155,6 +155,8 @@ arbiterLoop:
 		}
 	}
 
+	close(swa.messages)
+
 	return nil
 }
 
