@@ -115,7 +115,7 @@ callbackManagerFailoverLoop:
 			continue
 		}
 
-		seelog.Infof("Currently registered consumers [totalconsumers:%d]", len(consumers))
+		seelog.Infof("Currently registered consumers [totalConsumers:%d]", len(consumers))
 
 		// get partitionConsuming assignments
 		// start ServiceRunner of PartitionManager
@@ -231,7 +231,7 @@ func (this *CallbackManager) registerConsumergroup() error {
 		seelog.Errorf("Failed to register consumer instance [err:%s]", err)
 		return err
 	} else {
-		seelog.Infof("Consumer instance registered [insatanceid:%s]", this.kazooGroupInstance.ID)
+		seelog.Infof("Consumer instance registered [instanceId:%s]", this.kazooGroupInstance.ID)
 	}
 
 	return nil
