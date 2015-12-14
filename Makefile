@@ -37,7 +37,7 @@ save:
 
 test:
 	@echo -e "\033[32;1mPerforming tests\033[0m"
-	godep go test -v -cover -coverprofile .coverage
+	godep go test -v -cover -coverprofile .coverage -race
 
 cover: test
 	@echo -e "\033[32;1mRunning coverage report\033[0m"
