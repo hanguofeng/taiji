@@ -29,6 +29,7 @@ func (pc *PartitionConsumer) Init(config *CallbackItemConfig, topic string, part
 	pc.config = config
 	pc.Topic = topic
 	pc.Partition = partition
+	pc.manager = manager
 
 	return nil
 }
