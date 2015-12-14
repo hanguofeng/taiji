@@ -15,6 +15,7 @@ const (
 
 var (
 	configFile string
+	logConfig  string
 	version    bool
 	testMode   bool
 	gitCommit  string
@@ -22,6 +23,7 @@ var (
 
 func init() {
 	flag.StringVar(&configFile, "c", "config.json", "the config file")
+	flag.StringVar(&logConfig, "l", "logging.cfg", "log config file")
 	flag.BoolVar(&version, "V", false, "show version")
 	flag.BoolVar(&testMode, "t", false, "test config")
 }
@@ -37,6 +39,15 @@ func showVersion() {
 
 func main() {
 	flag.Parse()
+
+	if logConfig != "" {
+		logger, err := seelog.LoggerFromConfigAsFile(logConfig)
+		if err != nil {
+			seelog.Criticalf("Cannot start logger: %v", err)
+			os.Exit(-1)
+		}
+		seelog.ReplaceLogger(logger)
+	}
 	defer seelog.Flush()
 
 	if version {
