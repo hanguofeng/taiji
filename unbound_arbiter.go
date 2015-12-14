@@ -75,8 +75,8 @@ func (ua *UnboundArbiter) Run() error {
 					ua.manager.Topic, ua.manager.Partition, ua.config.Url, offset)
 				if offset >= 0 {
 					if offset-offsetBase >= int64(len(offsetWindow)) {
-						seelog.Debugf("Extend offsetWindow [offset:%d][offsetBase:%d][offsetWindowSize:%d]",
-							offset, offsetBase, len(offsetWindow))
+						seelog.Debugf("Extend offsetWindow [topic:%s][partition:%d][url:%s][offset:%d][offsetBase:%d][offsetWindowSize:%d]",
+							ua.manager.Topic, ua.manager.Partition, ua.config.Url, offset, offsetBase, len(offsetWindow))
 						// extend offsetWindow
 						newOffsetWindow := make([]bool, (offset-offsetBase+1)*2)
 						copy(newOffsetWindow, offsetWindow)
@@ -104,8 +104,9 @@ func (ua *UnboundArbiter) Run() error {
 						// TODO, use ring buffer instead of array slicing
 						offsetBase += int64(advanceCount)
 						offsetWindow = offsetWindow[advanceCount:]
-						seelog.Debugf("Fast-forward offsetBase [originOffsetBase:%d][offsetBase:%d][offsetWindowSize:%d][advance:%d]",
-							offsetBase-int64(advanceCount), offsetBase, len(offsetWindow), advanceCount)
+						seelog.Debugf("Fast-forward offsetBase [topic:%s][partition:%d][url:%s][originOffsetBase:%d][offsetBase:%d][offsetWindowSize:%d][advance:%d]",
+							ua.manager.Topic, ua.manager.Partition, ua.config.Url, offsetBase-int64(advanceCount),
+							offsetBase, len(offsetWindow), advanceCount)
 					}
 				}
 			}
