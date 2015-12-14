@@ -38,6 +38,9 @@ save:
 test:
 	@echo -e "\033[32;1mPerforming tests\033[0m"
 	godep go test -v -cover -coverprofile .coverage
+
+cover: test
+	@echo -e "\033[32;1mRunning coverage report\033[0m"
 	go tool cover -html .coverage
 
 format:
@@ -45,4 +48,4 @@ format:
 	gofmt -w *.go
 	goimports -w *.go
 
-.PHONY: build dist clean save test format
+.PHONY: build dist clean save test format cover
