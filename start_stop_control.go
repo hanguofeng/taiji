@@ -2,18 +2,117 @@ package main
 
 import (
 	"errors"
-	"runtime"
+	"sync"
+	"time"
+)
+
+type State uint
+
+var (
+	WAIT_FOR_STATE_TIMEOUT     = errors.New("Wait for state timeout")
+	SERVICE_NOT_RUNNING        = errors.New("Service is not running")
+	SERVICE_ALREADY_STARTED    = errors.New("Service already started")
+	SERVICE_UNEXPECTED_STOPPED = errors.New("Service unexpected stopped")
+)
+
+const (
+	PREPARED State = iota
+	STARTED
+	READY
+	CLOSING
+	CLOSED
 )
 
 type StartStopControl struct {
-	ready   chan struct{}
-	stopper chan struct{}
-	stopped chan struct{}
+	state       State
+	triggers    map[State]chan struct{}
+	stateLock   sync.RWMutex
+	triggerLock sync.Mutex
+}
+
+func (ssc *StartStopControl) getState() State {
+	ssc.stateLock.RLock()
+	defer ssc.stateLock.RUnlock()
+	return ssc.state
+}
+
+func (ssc *StartStopControl) switchState(state State) {
+	ssc.stateLock.Lock()
+	defer ssc.stateLock.Unlock()
+	ssc.removeTrigger(ssc.state)
+	ssc.state = state
+	ssc.doTrigger(state)
+}
+
+func (ssc *StartStopControl) removeTrigger(state State) {
+	ssc.triggerLock.Lock()
+	defer ssc.triggerLock.Unlock()
+
+	if ssc.triggers == nil {
+		ssc.triggers = make(map[State]chan struct{})
+	} else {
+		_, exists := ssc.triggers[state]
+
+		if exists {
+			delete(ssc.triggers, state)
+		}
+	}
+}
+
+func (ssc *StartStopControl) requireTrigger(state State) chan struct{} {
+	ssc.triggerLock.Lock()
+	defer ssc.triggerLock.Unlock()
+
+	if ssc.triggers == nil {
+		ssc.triggers = make(map[State]chan struct{})
+	}
+
+	trigger, exists := ssc.triggers[state]
+
+	if !exists {
+		trigger = make(chan struct{})
+		ssc.triggers[state] = trigger
+	}
+
+	return trigger
+}
+
+func (ssc *StartStopControl) doTrigger(state State) {
+	trigger := ssc.requireTrigger(state)
+
+	select {
+	case <-trigger:
+	default:
+		close(trigger)
+	}
+}
+
+func (ssc *StartStopControl) waitForState(state State) {
+	trigger := ssc.requireTrigger(state)
+
+	select {
+	case <-trigger:
+	}
+}
+
+func (ssc *StartStopControl) waitForStateTimeout(state State, timeout time.Duration) error {
+	trigger := ssc.requireTrigger(state)
+
+	select {
+	case <-trigger:
+		return nil
+	case <-time.After(timeout):
+		return WAIT_FOR_STATE_TIMEOUT
+	}
+}
+
+func (ssc *StartStopControl) waitForStateChannel(state State) <-chan struct{} {
+	return ssc.requireTrigger(state)
 }
 
 func (ssc *StartStopControl) ensureStart() error {
 	if ssc.Running() {
-		return errors.New("Service already started")
+		return SERVICE_ALREADY_STARTED
 	}
 
 	ssc.markStart()
@@ -22,58 +121,53 @@ func (ssc *StartStopControl) ensureStart() error {
 }
 
 func (ssc *StartStopControl) markStart() {
-	ssc.stopper = make(chan struct{})
-	ssc.stopped = make(chan struct{})
+	ssc.switchState(STARTED)
 }
 
-func (ssc *StartStopControl) markStop() {
-	ssc.markClosing()
-
-	if ssc.stopped != nil {
-		select {
-		case <-ssc.stopped:
-		default:
-			close(ssc.stopped)
-		}
-	}
+func (ssc *StartStopControl) markReady() {
+	ssc.switchState(READY)
 }
 
 func (ssc *StartStopControl) markClosing() {
-	if ssc.stopper != nil {
-		select {
-		case <-ssc.stopper:
-		default:
-			close(ssc.stopper)
-		}
+	ssc.switchState(CLOSING)
+}
+
+func (ssc *StartStopControl) markStop() {
+	ssc.switchState(CLOSED)
+}
+
+func (ssc *StartStopControl) Prepare() {
+	ssc.switchState(PREPARED)
+}
+
+func (ssc *StartStopControl) Ready() error {
+	select {
+	case <-ssc.ReadyChannel():
+	case <-ssc.WaitForExitChannel():
+		return SERVICE_UNEXPECTED_STOPPED
 	}
+
+	return nil
 }
 
 func (ssc *StartStopControl) WaitForClose() {
-	select {
-	case <-ssc.WaitForCloseChannel():
-	}
+	ssc.waitForState(CLOSING)
 }
 
 func (ssc *StartStopControl) WaitForExit() {
-	select {
-	case <-ssc.WaitForExitChannel():
-	}
+	ssc.waitForState(CLOSED)
+}
+
+func (ssc *StartStopControl) ReadyChannel() <-chan struct{} {
+	return ssc.waitForStateChannel(READY)
 }
 
 func (ssc *StartStopControl) WaitForCloseChannel() <-chan struct{} {
-	// TODO, use atomic semaphore wait
-	if ssc.stopper == nil {
-		runtime.Gosched()
-	}
-	return ssc.stopper
+	return ssc.waitForStateChannel(CLOSING)
 }
 
 func (ssc *StartStopControl) WaitForExitChannel() <-chan struct{} {
-	// TODO, use atomic semaphore wait
-	if ssc.stopped == nil {
-		runtime.Gosched()
-	}
-	return ssc.stopped
+	return ssc.waitForStateChannel(CLOSED)
 }
 
 func (ssc *StartStopControl) Close() error {
@@ -86,7 +180,7 @@ func (ssc *StartStopControl) Close() error {
 
 func (ssc *StartStopControl) AsyncClose() error {
 	if !ssc.Running() {
-		return errors.New("Service is not running")
+		return SERVICE_NOT_RUNNING
 	}
 
 	ssc.markClosing()
@@ -94,12 +188,8 @@ func (ssc *StartStopControl) AsyncClose() error {
 }
 
 func (ssc *StartStopControl) Closed() bool {
-	if ssc.stopped == nil || ssc.stopper == nil {
-		return true
-	}
-
-	select {
-	case <-ssc.stopped:
+	switch ssc.getState() {
+	case PREPARED, CLOSED:
 		return true
 	default:
 		return false
@@ -107,51 +197,14 @@ func (ssc *StartStopControl) Closed() bool {
 }
 
 func (ssc *StartStopControl) Closing() bool {
-	if ssc.Closed() {
-		return false
-	}
+	return ssc.getState() == CLOSING
+}
 
-	select {
-	case <-ssc.stopper:
+func (ssc *StartStopControl) Running() bool {
+	switch ssc.getState() {
+	case STARTED, READY:
 		return true
 	default:
 		return false
 	}
-}
-
-func (ssc *StartStopControl) Running() bool {
-	return !ssc.Closed() && !ssc.Closing()
-}
-
-func (ssc *StartStopControl) initReady() {
-	ssc.ready = make(chan struct{})
-}
-
-func (ssc *StartStopControl) markReady() {
-	if ssc.ready != nil {
-		select {
-		case <-ssc.ready:
-		default:
-			close(ssc.ready)
-		}
-	}
-}
-
-func (ssc *StartStopControl) Ready() error {
-	select {
-	case <-ssc.ReadyChannel():
-	case <-ssc.WaitForExitChannel():
-		return errors.New("Service stopped")
-	}
-
-	return nil
-}
-
-func (ssc *StartStopControl) ReadyChannel() <-chan struct{} {
-	// TODO, use atomic semaphore wait
-	for ssc.ready == nil {
-		runtime.Gosched()
-	}
-
-	return ssc.ready
 }

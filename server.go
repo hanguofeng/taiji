@@ -91,6 +91,7 @@ func (this *Server) Validate() error {
 
 func (this *Server) Run() error {
 	// run consumer managers
+	this.callbackManagerRunner.Prepare()
 	_, err := this.callbackManagerRunner.RunAsync(this.callbackManagers)
 
 	if err != nil {

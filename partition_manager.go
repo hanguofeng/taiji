@@ -70,6 +70,7 @@ func (this *PartitionManager) Run() error {
 	defer this.markStop()
 
 	// start partition consumer
+	this.partitionConsumer.Prepare()
 	go this.partitionConsumer.Run()
 	defer this.partitionConsumer.Close()
 	if err := this.partitionConsumer.Ready(); err != nil {
@@ -78,6 +79,7 @@ func (this *PartitionManager) Run() error {
 	}
 
 	// start arbiter
+	this.arbiter.Prepare()
 	go this.arbiter.Run()
 	defer this.arbiter.Close()
 	if err := this.arbiter.Ready(); err != nil {
@@ -98,6 +100,7 @@ func (this *PartitionManager) Run() error {
 		}
 	}
 	this.transporterRunner.RetryTimes = len(this.transporter) * 3
+	this.transporterRunner.Prepare()
 	this.transporterRunner.RunAsync(this.transporter)
 	defer this.transporterRunner.Close()
 

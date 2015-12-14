@@ -15,6 +15,7 @@ type Arbiter interface {
 	Run() error
 	Close() error
 	Ready() error
+	Prepare()
 	WaitForExitChannel() <-chan struct{}
 }
 

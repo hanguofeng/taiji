@@ -41,7 +41,6 @@ func (pc *PartitionConsumer) Run() error {
 
 	// defer is executed reversed to declaration order
 	defer pc.markStop()
-	pc.initReady()
 
 	// claim partition, zk /consumers/CG/owners
 	for maxRetries, tries := 5, 0; tries < maxRetries; tries++ {

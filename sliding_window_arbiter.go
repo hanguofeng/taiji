@@ -79,7 +79,6 @@ func (swa *SlidingWindowArbiter) Run() error {
 		return err
 	}
 	defer swa.markStop()
-	swa.initReady()
 
 	consumer := swa.manager.GetConsumer()
 

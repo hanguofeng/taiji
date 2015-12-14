@@ -47,7 +47,6 @@ func (sa *SequentialArbiter) Run() error {
 		return err
 	}
 	defer sa.markStop()
-	sa.initReady()
 	consumer := sa.manager.GetConsumer()
 
 	// buffer only one message

@@ -160,6 +160,7 @@ func (om *OffsetManager) Run() error {
 		offsetStorage = append(offsetStorage, storage)
 	}
 
+	om.offsetStorageRunner.Prepare()
 	if _, err := om.offsetStorageRunner.RunAsync(offsetStorage); err != nil {
 		return err
 	}

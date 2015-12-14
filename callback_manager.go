@@ -270,6 +270,7 @@ func (this *CallbackManager) partitionRun(consumers kazoo.ConsumergroupInstanceL
 	}
 
 	this.partitionManagerRunner.RetryTimes = len(this.partitionManagers) * 3
+	this.partitionManagerRunner.Prepare()
 	if _, err := this.partitionManagerRunner.RunAsync(this.partitionManagers); err != nil {
 		return err
 	}

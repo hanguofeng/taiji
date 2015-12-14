@@ -47,7 +47,6 @@ func (ua *UnboundArbiter) Run() error {
 		return err
 	}
 	defer ua.markStop()
-	ua.initReady()
 
 	consumer := ua.manager.GetConsumer()
 
