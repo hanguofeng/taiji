@@ -9,10 +9,11 @@ import (
 )
 
 const (
-	GET_CONSUMER_LIST_RETRY_TIME     = 10 * time.Second
-	RUN_PARTITION_MANAGER_RETRY_TIME = 10 * time.Second
-	CONSUMER_LIST_CHANGE_RELOAD_TIME = 5 * time.Second
-	WATCH_INSTANCE_CHANGE_DELAY_TIME = 5 * time.Second
+	REGISTER_CONSUMER_GROUP_RETRY_TIME = 10 * time.Second
+	GET_CONSUMER_LIST_RETRY_TIME       = 10 * time.Second
+	RUN_PARTITION_MANAGER_RETRY_TIME   = 10 * time.Second
+	CONSUMER_LIST_CHANGE_RELOAD_TIME   = 5 * time.Second
+	WATCH_INSTANCE_CHANGE_DELAY_TIME   = 5 * time.Second
 )
 
 type CallbackManager struct {
@@ -98,7 +99,8 @@ callbackManagerFailoverLoop:
 		}
 
 		if err := this.registerConsumergroup(); err != nil {
-			return err
+			time.Sleep(REGISTER_CONSUMER_GROUP_RETRY_TIME)
+			continue
 		}
 
 		seelog.Infof("Waiting for %v to avoid consumer register rebalance herd",
