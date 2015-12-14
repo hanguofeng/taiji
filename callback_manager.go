@@ -217,15 +217,11 @@ func (this *CallbackManager) registerConsumergroup() error {
 	// Register Consumergroup zk node
 	if exists, err := this.kazooGroup.Exists(); err != nil {
 		seelog.Errorf("Failed to check for existence of consumergroup [err:%s]", err)
-		this.saramaConsumer.Close()
-		this.kazoo.Close()
 		return err
 	} else if !exists {
 		seelog.Infof("Consumergroup does not yet exists, creating [consumergroup:%s] ", this.GroupName)
 		if err := this.kazooGroup.Create(); err != nil {
 			seelog.Errorf("Failed to create consumergroup in zookeeper [err:%s]", err)
-			this.saramaConsumer.Close()
-			this.kazoo.Close()
 			return err
 		}
 	}
