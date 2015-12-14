@@ -101,9 +101,16 @@ func (ht *HTTPTransporter) Run() error {
 
 		rpcStopTime := time.Now()
 
-		offsets <- message.Offset
 		seelog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d][cost:%.2fms]",
 			message.Topic, message.Partition, ht.Callback.Url, message.Offset, rpcStopTime.Sub(rpcStartTime).Seconds()*1000)
+
+		seelog.Debugf("HTTP Transporter commit message to arbiter [topic:%s][partition:%d][url:%s][offset:%d]",
+			message.Topic, message.Partition, ht.Callback.Url, message.Offset)
+
+		offsets <- message.Offset
+
+		seelog.Debugf("HTTP Transporter processed message [topic:%s][partition:%d][url:%s][offset:%d]",
+			message.Topic, message.Partition, ht.Callback.Url, message.Offset)
 	}
 
 	seelog.Debugf("HTTPTransporter exited [topic:%s][partition:%d][url:%s]", ht.manager.Topic, ht.manager.Partition, ht.Callback.Url)
