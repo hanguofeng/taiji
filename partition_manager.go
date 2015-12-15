@@ -90,8 +90,8 @@ func (this *PartitionManager) Run() error {
 	// start transporter group
 	this.transporter = make([]Transporter, 0)
 	// TODO, dynamic create worker using this.config.WorkerNum and arbiter judgement
-	this.config.WorkerNum = 3
-	for i := 0; i != this.config.WorkerNum; i++ {
+	workerNum := this.arbiter.PreferredWorkerNum(this.config.WorkerNum)
+	for i := 0; i != workerNum; i++ {
 		if transporter, err := NewTransporter(this.config.TransporterName); err == nil {
 			if err := transporter.Init(this.config, this.config.TransporterConfig, this); err != nil {
 				return err

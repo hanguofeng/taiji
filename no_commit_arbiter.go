@@ -26,6 +26,10 @@ func NewNoCommitArbiter() Arbiter {
 	}
 }
 
+func (*NoCommitArbiter) PreferredWorkerNum(workerNum int) int {
+	return workerNum
+}
+
 func (sa *NoCommitArbiter) OffsetChannel() chan<- int64 {
 	return sa.offsets
 }

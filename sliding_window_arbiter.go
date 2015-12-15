@@ -38,6 +38,14 @@ func NewSlidingWindowArbiter() Arbiter {
 	}
 }
 
+func (swa *SlidingWindowArbiter) PreferredWorkerNum(workerNum int) int {
+	if workerNum > swa.windowSize {
+		return swa.windowSize
+	} else {
+		return workerNum
+	}
+}
+
 func (swa *SlidingWindowArbiter) OffsetChannel() chan<- int64 {
 	return swa.offsets
 }

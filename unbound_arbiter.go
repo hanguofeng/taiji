@@ -28,6 +28,10 @@ func NewUnboundArbiter() Arbiter {
 	}
 }
 
+func (*UnboundArbiter) PreferredWorkerNum(workerNum int) int {
+	return workerNum
+}
+
 func (ua *UnboundArbiter) OffsetChannel() chan<- int64 {
 	return ua.offsets
 }

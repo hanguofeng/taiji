@@ -26,6 +26,10 @@ func NewSequentialArbiter() Arbiter {
 	}
 }
 
+func (*SequentialArbiter) PreferredWorkerNum(workerNum int) int {
+	return 1
+}
+
 func (sa *SequentialArbiter) OffsetChannel() chan<- int64 {
 	return sa.offsets
 }

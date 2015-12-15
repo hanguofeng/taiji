@@ -12,6 +12,7 @@ type Arbiter interface {
 	OffsetChannel() chan<- int64
 	MessageChannel() <-chan *sarama.ConsumerMessage
 	Init(config *CallbackItemConfig, arbiterConfig ArbiterConfig, manager *PartitionManager) error
+	PreferredWorkerNum(workerNum int) int
 	Run() error
 	Close() error
 	Ready() error
