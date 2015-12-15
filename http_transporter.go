@@ -20,6 +20,7 @@ type HTTPTransporter struct {
 	ContentType       string
 	config            *CallbackItemConfig
 	transporterConfig TransporterConfig
+	discardBuffer     []byte
 	manager           *PartitionManager
 }
 
@@ -47,6 +48,7 @@ func (ht *HTTPTransporter) Init(config *CallbackItemConfig, transporterConfig Tr
 	ht.Serializer = config.Serializer
 	ht.ContentType = config.ContentType
 	ht.transporterConfig = transporterConfig
+	ht.discardBuffer = make([]byte, 4096)
 	ht.manager = manager
 
 	return nil
@@ -176,11 +178,9 @@ func (ht *HTTPTransporter) delivery(message *sarama.ConsumerMessage, retryTime i
 
 		if 200 == res.StatusCode {
 			// success
-			tempBuf := make([]byte, 4096)
-
 			// discard body
 			for {
-				_, e := res.Body.Read(tempBuf)
+				_, e := res.Body.Read(ht.discardBuffer)
 				if e != nil {
 					break
 				}
