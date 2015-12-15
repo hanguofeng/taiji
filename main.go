@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-
 	"os"
+	"runtime/pprof"
 
 	"github.com/cihub/seelog"
 )
@@ -14,16 +14,18 @@ const (
 )
 
 var (
-	configFile string
-	logConfig  string
-	version    bool
-	testMode   bool
-	gitCommit  string
+	configFile  string
+	logConfig   string
+	version     bool
+	testMode    bool
+	gitCommit   string
+	profileFile string
 )
 
 func init() {
 	flag.StringVar(&configFile, "c", "config.json", "the config file")
 	flag.StringVar(&logConfig, "l", "logging.cfg", "log config file")
+	flag.StringVar(&profileFile, "p", "", "log profile file")
 	flag.BoolVar(&version, "V", false, "show version")
 	flag.BoolVar(&testMode, "t", false, "test config")
 }
@@ -39,6 +41,15 @@ func showVersion() {
 
 func main() {
 	flag.Parse()
+
+	if profileFile != "" {
+		f, err := os.Create(profileFile)
+		if err != nil {
+			seelog.Criticalf("Cannot start profiler: %v", err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	if logConfig != "" {
 		logger, err := seelog.LoggerFromConfigAsFile(logConfig)
