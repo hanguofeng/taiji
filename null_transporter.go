@@ -1,6 +1,6 @@
 package main
 
-import "github.com/cihub/seelog"
+import "github.com/golang/glog"
 
 type NullTransporter struct {
 	config            *CallbackItemConfig
@@ -26,7 +26,7 @@ func (nt *NullTransporter) Run() error {
 	offsets := arbiter.OffsetChannel()
 
 	for message := range messages {
-		seelog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d]",
+		glog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d]",
 			message.Topic, message.Partition, nt.config.Url, message.Offset)
 		offsets <- message.Offset
 	}

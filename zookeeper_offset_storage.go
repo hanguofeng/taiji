@@ -2,12 +2,11 @@ package main
 
 import (
 	"errors"
+	"reflect"
 	"sync"
 	"time"
 
-	"reflect"
-
-	"github.com/cihub/seelog"
+	"github.com/golang/glog"
 )
 
 const CONFIG_ZOOKEEPER_OFFSET_STORAGE_COMMIT_INTERVAL = "commit_interval"
@@ -132,7 +131,7 @@ tickerLoop:
 
 				for partition, offset := range topicOffsets {
 					if err := zom.manager.GetKazooGroup().CommitOffset(topic, partition, offset); err != nil {
-						seelog.Warnf("Failed to commit offset [topic:%s][partition:%d][offset:%d]", topic, partition, offset)
+						glog.Warningf("Failed to commit offset [topic:%s][partition:%d][offset:%d]", topic, partition, offset)
 					} else {
 						zom.lastCommittedOffsets[topic][partition] = offset
 					}
@@ -145,7 +144,7 @@ tickerLoop:
 	zom.l.Lock()
 	for topic, _ := range zom.offsets {
 		if zom.offsets[topic] != nil && len(zom.offsets[topic]) > 0 {
-			seelog.Warnf("Not all offsets were committed before shutdown was completed")
+			glog.Warningf("Not all offsets were committed before shutdown was completed")
 			delete(zom.offsets, topic)
 		}
 	}

@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/Shopify/sarama"
-	"github.com/cihub/seelog"
+	"github.com/golang/glog"
 )
 
 type UnboundArbiter struct {
@@ -68,14 +68,14 @@ func (ua *UnboundArbiter) Run() error {
 		for {
 			select {
 			case <-ua.WaitForCloseChannel():
-				seelog.Debugf("Stop event triggered [url:%s]", ua.config.Url)
+				glog.V(1).Infof("Stop event triggered [url:%s]", ua.config.Url)
 				break arbiterOffsetLoop
 			case offset := <-ua.offsets:
-				seelog.Debugf("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
+				glog.V(1).Infof("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
 					ua.manager.Topic, ua.manager.Partition, ua.config.Url, offset)
 				if offset >= 0 {
 					if offset-offsetBase >= int64(len(offsetWindow)) {
-						seelog.Debugf("Extend offsetWindow [topic:%s][partition:%d][url:%s][offset:%d][offsetBase:%d][offsetWindowSize:%d]",
+						glog.V(1).Infof("Extend offsetWindow [topic:%s][partition:%d][url:%s][offset:%d][offsetBase:%d][offsetWindowSize:%d]",
 							ua.manager.Topic, ua.manager.Partition, ua.config.Url, offset, offsetBase, len(offsetWindow))
 						// extend offsetWindow
 						newOffsetWindow := make([]bool, (offset-offsetBase+1)*2)
@@ -101,7 +101,7 @@ func (ua *UnboundArbiter) Run() error {
 						// TODO, use ring buffer instead of array slicing
 						offsetBase += int64(advanceCount)
 						offsetWindow = offsetWindow[advanceCount:]
-						seelog.Debugf("Fast-forward offsetBase [topic:%s][partition:%d][url:%s][originOffsetBase:%d][offsetBase:%d][offsetWindowSize:%d][advance:%d]",
+						glog.V(1).Infof("Fast-forward offsetBase [topic:%s][partition:%d][url:%s][originOffsetBase:%d][offsetBase:%d][offsetWindowSize:%d][advance:%d]",
 							ua.manager.Topic, ua.manager.Partition, ua.config.Url, offsetBase-int64(advanceCount),
 							offsetBase, len(offsetWindow), advanceCount)
 					}
@@ -117,10 +117,10 @@ func (ua *UnboundArbiter) Run() error {
 		for {
 			select {
 			case <-ua.WaitForCloseChannel():
-				seelog.Debugf("Stop event triggered [url:%s]", ua.config.Url)
+				glog.V(1).Infof("Stop event triggered [url:%s]", ua.config.Url)
 				break arbiterMessageLoop
 			case message := <-consumer.Messages():
-				seelog.Debugf("Read message from PartitionConsumer [topic:%s][partition:%d][url:%s][offset:%d]",
+				glog.V(1).Infof("Read message from PartitionConsumer [topic:%s][partition:%d][url:%s][offset:%d]",
 					message.Topic, message.Partition, ua.config.Url, message.Offset)
 
 				// set base
@@ -131,7 +131,7 @@ func (ua *UnboundArbiter) Run() error {
 				// feed message to transporter
 				select {
 				case <-ua.WaitForCloseChannel():
-					seelog.Debugf("Stop event triggered [url:%s]", ua.config.Url)
+					glog.V(1).Infof("Stop event triggered [url:%s]", ua.config.Url)
 					break arbiterMessageLoop
 				case ua.messages <- message:
 				}

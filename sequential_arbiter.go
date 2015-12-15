@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/Shopify/sarama"
-	"github.com/cihub/seelog"
+	"github.com/golang/glog"
 )
 
 type SequentialArbiter struct {
@@ -63,10 +63,10 @@ arbiterLoop:
 	for {
 		select {
 		case <-sa.WaitForCloseChannel():
-			seelog.Debugf("Stop event triggered [url:%s]", sa.config.Url)
+			glog.V(1).Infof("Stop event triggered [url:%s]", sa.config.Url)
 			break arbiterLoop
 		case offset := <-sa.offsets:
-			seelog.Debugf("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
+			glog.V(1).Infof("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
 				sa.manager.Topic, sa.manager.Partition, sa.config.Url, offset)
 			if offset >= 0 {
 				// trigger offset commit
@@ -75,15 +75,15 @@ arbiterLoop:
 			}
 			select {
 			case <-sa.WaitForCloseChannel():
-				seelog.Debugf("Stop event triggered [url:%s]", sa.config.Url)
+				glog.V(1).Infof("Stop event triggered [url:%s]", sa.config.Url)
 				break arbiterLoop
 			case message := <-consumer.Messages():
-				seelog.Debugf("Read message from PartitionConsumer [topic:%s][partition:%d][url:%s][offset:%d]",
+				glog.V(1).Infof("Read message from PartitionConsumer [topic:%s][partition:%d][url:%s][offset:%d]",
 					message.Topic, message.Partition, sa.config.Url, message.Offset)
 				// feed message to transporter
 				select {
 				case <-sa.WaitForCloseChannel():
-					seelog.Debugf("Stop event triggered [url:%s]", sa.config.Url)
+					glog.V(1).Infof("Stop event triggered [url:%s]", sa.config.Url)
 					break arbiterLoop
 				case sa.messages <- message:
 				}

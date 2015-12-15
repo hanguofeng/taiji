@@ -1,11 +1,10 @@
 package main
 
 import (
+	"errors"
 	"sync"
 
-	"errors"
-
-	"github.com/cihub/seelog"
+	"github.com/golang/glog"
 )
 
 type OffsetMap map[string]map[int32]int64
@@ -80,7 +79,7 @@ func (om *OffsetManager) InitializePartition(topic string, partition int32) (int
 	for name, storage := range om.slaveOffsetStorage {
 		go func(name string, storage OffsetStorage) {
 			if _, err := storage.InitializePartition(topic, partition); err != nil {
-				seelog.Warnf("Initialize slaveOffsetStorage failed [topic:%s][partition:%d][storageName:%s]",
+				glog.Warningf("Initialize slaveOffsetStorage failed [topic:%s][partition:%d][storageName:%s]",
 					topic, partition, name)
 			}
 		}(name, storage)
@@ -103,7 +102,7 @@ func (om *OffsetManager) FinalizePartition(topic string, partition int32) error 
 	for name, storage := range om.slaveOffsetStorage {
 		go func(name string, storage OffsetStorage) {
 			if err := storage.FinalizePartition(topic, partition); err != nil {
-				seelog.Warnf("Finalize slaveOffsetStorage failed [topic:%s][partition:%d][storageName:%s]",
+				glog.Warningf("Finalize slaveOffsetStorage failed [topic:%s][partition:%d][storageName:%s]",
 					topic, partition, name)
 			}
 		}(name, storage)
@@ -121,7 +120,7 @@ func (om *OffsetManager) CommitOffset(topic string, partition int32, offset int6
 	}
 
 	if om.lastCommitted[topic][partition] > offset {
-		seelog.Errorf("Invalid offset committed [topic:%s][partition:%d][lastCommitted:%d][current:%d]",
+		glog.Errorf("Invalid offset committed [topic:%s][partition:%d][lastCommitted:%d][current:%d]",
 			topic, partition, om.lastCommitted[topic][partition], offset)
 		return errors.New("Invalid offset to commit")
 	}
@@ -129,7 +128,7 @@ func (om *OffsetManager) CommitOffset(topic string, partition int32, offset int6
 	for name, storage := range om.slaveOffsetStorage {
 		go func(name string, storage OffsetStorage) {
 			if err := storage.WriteOffset(topic, partition, offset+1); err != nil {
-				seelog.Warnf("CommitOffset to slaveOffsetStorage failed [topic:%s][partition:%d][offset:%d][storageName:%s]",
+				glog.Warningf("CommitOffset to slaveOffsetStorage failed [topic:%s][partition:%d][offset:%d][storageName:%s]",
 					topic, partition, offset, name)
 			}
 		}(name, storage)

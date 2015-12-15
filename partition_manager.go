@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/Shopify/sarama"
-	"github.com/cihub/seelog"
+	"github.com/golang/glog"
 )
 
 type PartitionManager struct {
@@ -74,7 +74,7 @@ func (this *PartitionManager) Run() error {
 	go this.partitionConsumer.Run()
 	defer this.partitionConsumer.Close()
 	if err := this.partitionConsumer.Ready(); err != nil {
-		seelog.Errorf("Partition consumer start failed [err:%s]", err)
+		glog.Errorf("Partition consumer start failed [err:%s]", err)
 		return err
 	}
 
@@ -83,7 +83,7 @@ func (this *PartitionManager) Run() error {
 	go this.arbiter.Run()
 	defer this.arbiter.Close()
 	if err := this.arbiter.Ready(); err != nil {
-		seelog.Errorf("Arbiter start failed [err:%s]", err)
+		glog.Errorf("Arbiter start failed [err:%s]", err)
 		return err
 	}
 
@@ -104,7 +104,7 @@ func (this *PartitionManager) Run() error {
 	this.transporterRunner.RetryTimes = len(this.transporter) * 3
 	this.transporterRunner.Prepare()
 	if _, err := this.transporterRunner.RunAsync(this.transporter); err != nil {
-		seelog.Errorf("Transporter start failed [err:%v]", err)
+		glog.Errorf("Transporter start failed [err:%v]", err)
 		return err
 	}
 	defer this.transporterRunner.Close()

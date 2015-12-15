@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/Shopify/sarama"
-	"github.com/cihub/seelog"
+	"github.com/golang/glog"
 )
 
 type NoCommitArbiter struct {
@@ -55,10 +55,10 @@ arbiterLoop:
 	for {
 		select {
 		case <-sa.WaitForCloseChannel():
-			seelog.Debugf("Stop event triggered [url:%s]", sa.config.Url)
+			glog.V(1).Infof("Stop event triggered [url:%s]", sa.config.Url)
 			break arbiterLoop
 		case offset := <-sa.offsets:
-			seelog.Debugf("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
+			glog.V(1).Infof("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
 				sa.manager.Topic, sa.manager.Partition, sa.config.Url, offset)
 		}
 	}

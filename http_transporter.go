@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/cihub/seelog"
+	"github.com/golang/glog"
 )
 
 const HTTP_FORM_ENCODING = "application/x-www-form-urlencoded"
@@ -58,7 +58,7 @@ func (ht *HTTPTransporter) Run() error {
 	offsets := arbiter.OffsetChannel()
 
 	for message := range messages {
-		seelog.Debugf("Recevied message [topic:%s][partition:%d][url:%s][offset:%d]",
+		glog.V(1).Infof("Recevied message [topic:%s][partition:%d][url:%s][offset:%d]",
 			message.Topic, message.Partition, ht.Callback.Url, message.Offset)
 
 		rpcStartTime := time.Now()
@@ -84,13 +84,13 @@ func (ht *HTTPTransporter) Run() error {
 				break
 			} else if ht.Callback.BypassFailed {
 				// failed
-				seelog.Errorf(
+				glog.Errorf(
 					"Message skipped due to delivery retryTimes exceeded [topic:%s][partition:%d][url:%s][offset:%d][retryTimes:%d][bypassFailed:%t]",
 					message.Topic, message.Partition, ht.Callback.Url, message.Offset, ht.Callback.RetryTimes, ht.Callback.BypassFailed)
 				break
 			}
 
-			seelog.Errorf(
+			glog.Errorf(
 				"Retry delivery after %s due to delivery retryTime exceeded [topic:%s][partition:%d][url:%s][offset:%d][retryTimes:%d][bypassFailed:%t][failedSleep:%.2fms]",
 				ht.Callback.FailedSleep.String(), message.Topic, message.Partition, ht.Callback.Url, message.Offset, ht.Callback.RetryTimes, ht.Callback.BypassFailed,
 				ht.Callback.FailedSleep.Seconds()*1000)
@@ -101,19 +101,19 @@ func (ht *HTTPTransporter) Run() error {
 
 		rpcStopTime := time.Now()
 
-		seelog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d][cost:%.2fms]",
+		glog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d][cost:%.2fms]",
 			message.Topic, message.Partition, ht.Callback.Url, message.Offset, rpcStopTime.Sub(rpcStartTime).Seconds()*1000)
 
-		seelog.Debugf("HTTP Transporter commit message to arbiter [topic:%s][partition:%d][url:%s][offset:%d]",
+		glog.V(1).Infof("HTTP Transporter commit message to arbiter [topic:%s][partition:%d][url:%s][offset:%d]",
 			message.Topic, message.Partition, ht.Callback.Url, message.Offset)
 
 		offsets <- message.Offset
 
-		seelog.Debugf("HTTP Transporter processed message [topic:%s][partition:%d][url:%s][offset:%d]",
+		glog.V(1).Infof("HTTP Transporter processed message [topic:%s][partition:%d][url:%s][offset:%d]",
 			message.Topic, message.Partition, ht.Callback.Url, message.Offset)
 	}
 
-	seelog.Debugf("HTTPTransporter exited [topic:%s][partition:%d][url:%s]", ht.manager.Topic, ht.manager.Partition, ht.Callback.Url)
+	glog.V(1).Infof("HTTPTransporter exited [topic:%s][partition:%d][url:%s]", ht.manager.Topic, ht.manager.Partition, ht.Callback.Url)
 
 	return nil
 }
@@ -193,12 +193,12 @@ func (ht *HTTPTransporter) delivery(message *sarama.ConsumerMessage, retryTime i
 			if err != nil {
 				responseBody = []byte{}
 			}
-			seelog.Errorf(
+			glog.Errorf(
 				"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][responseCode:%d][rpcCost:%.2fms][totalCost:%.2fms][responseBody:%s']",
 				message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, res.StatusCode, rpcTime, totalTime, responseBody)
 		}
 	} else {
-		seelog.Errorf(
+		glog.Errorf(
 			"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][rpcCost:%.2fms][totalCost:%.2fms][err:%s]",
 			message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, rpcTime, totalTime, err.Error())
 	}

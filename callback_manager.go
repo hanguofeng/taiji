@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/cihub/seelog"
+	"github.com/golang/glog"
 	"github.com/wvanbergen/kazoo-go"
 )
 
@@ -105,25 +105,25 @@ callbackManagerFailoverLoop:
 			continue
 		}
 
-		seelog.Infof("Waiting for %v to avoid consumer register rebalance herd",
+		glog.Infof("Waiting for %v to avoid consumer register rebalance herd",
 			WATCH_INSTANCE_CHANGE_DELAY_TIME)
 		time.Sleep(WATCH_INSTANCE_CHANGE_DELAY_TIME)
 
 		consumers, consumerChanges, err := this.kazooGroup.WatchInstances()
 
 		if err != nil {
-			seelog.Errorf("Failed to get list of registered consumer instances [err:%s]", err)
+			glog.Errorf("Failed to get list of registered consumer instances [err:%s]", err)
 			time.Sleep(GET_CONSUMER_LIST_RETRY_TIME)
 			continue
 		}
 
-		seelog.Infof("Currently registered consumers [totalConsumers:%d]", len(consumers))
+		glog.Infof("Currently registered consumers [totalConsumers:%d]", len(consumers))
 
 		// get partitionConsuming assignments
 		// start ServiceRunner of PartitionManager
 		// TODO refactor this
 		if err := this.partitionRun(consumers); err != nil {
-			seelog.Errorf("Failed to init partition consumer [err:%s]", err)
+			glog.Errorf("Failed to init partition consumer [err:%s]", err)
 			time.Sleep(RUN_PARTITION_MANAGER_RETRY_TIME)
 			continue
 		}
@@ -134,36 +134,36 @@ callbackManagerFailoverLoop:
 			break callbackManagerFailoverLoop
 
 		case <-consumerChanges:
-			seelog.Infof("Triggering rebalance due to consumer list change")
+			glog.Infof("Triggering rebalance due to consumer list change")
 			this.partitionManagerRunner.Close()
-			seelog.Infof("Waiting for %v to avoid consumer inflight rebalance herd",
+			glog.Infof("Waiting for %v to avoid consumer inflight rebalance herd",
 				CONSUMER_LIST_CHANGE_RELOAD_TIME)
 			time.Sleep(CONSUMER_LIST_CHANGE_RELOAD_TIME)
 		case <-this.partitionManagerRunner.WaitForExitChannel():
-			seelog.Warn("PartitionManager unexpectedly stopped")
+			glog.Warning("PartitionManager unexpectedly stopped")
 		}
 
 		// deregister Consumergroup instance from zookeeper
 		if err := this.kazooGroupInstance.Deregister(); err != nil {
-			seelog.Errorf("Failed deregistering consumer instance [err:%s]", err)
+			glog.Errorf("Failed deregistering consumer instance [err:%s]", err)
 		} else {
-			seelog.Infof("Deregistered consumer instance [instanceId:%s]", this.kazooGroupInstance.ID)
+			glog.Infof("Deregistered consumer instance [instanceId:%s]", this.kazooGroupInstance.ID)
 		}
 	}
 
 	// sync close offsetManager
 	if err := this.offsetManager.Close(); err != nil {
-		seelog.Errorf("Failed closing the offset manager [err:%s]", err)
+		glog.Errorf("Failed closing the offset manager [err:%s]", err)
 	}
 
 	// close sarama Consumer
 	if err := this.saramaConsumer.Close(); err != nil {
-		seelog.Errorf("Failed closing the Sarama client [err:%s]", err)
+		glog.Errorf("Failed closing the Sarama client [err:%s]", err)
 	}
 
 	// close zookeeper connection
 	if err := this.kazoo.Close(); err != nil {
-		seelog.Errorf("Failed closing the Zookeeper connection [err:%s]", err)
+		glog.Errorf("Failed closing the Zookeeper connection [err:%s]", err)
 	}
 
 	return nil
@@ -218,22 +218,22 @@ func (this *CallbackManager) connectKafka() error {
 func (this *CallbackManager) registerConsumergroup() error {
 	// Register Consumergroup zk node
 	if exists, err := this.kazooGroup.Exists(); err != nil {
-		seelog.Errorf("Failed to check for existence of consumergroup [err:%s]", err)
+		glog.Errorf("Failed to check for existence of consumergroup [err:%s]", err)
 		return err
 	} else if !exists {
-		seelog.Infof("Consumergroup does not yet exists, creating [consumergroup:%s] ", this.GroupName)
+		glog.Infof("Consumergroup does not yet exists, creating [consumergroup:%s] ", this.GroupName)
 		if err := this.kazooGroup.Create(); err != nil {
-			seelog.Errorf("Failed to create consumergroup in zookeeper [err:%s]", err)
+			glog.Errorf("Failed to create consumergroup in zookeeper [err:%s]", err)
 			return err
 		}
 	}
 
 	// register new kazoo.ConsumerGroup instance
 	if err := this.kazooGroupInstance.Register(this.Topics); err != nil {
-		seelog.Errorf("Failed to register consumer instance [err:%s]", err)
+		glog.Errorf("Failed to register consumer instance [err:%s]", err)
 		return err
 	} else {
-		seelog.Infof("Consumer instance registered [instanceId:%s]", this.kazooGroupInstance.ID)
+		glog.Infof("Consumer instance registered [instanceId:%s]", this.kazooGroupInstance.ID)
 	}
 
 	return nil
@@ -246,13 +246,13 @@ func (this *CallbackManager) partitionRun(consumers kazoo.ConsumergroupInstanceL
 		// Fetch a list of partition IDs
 		partitions, err := this.kazoo.Topic(topic).Partitions()
 		if err != nil {
-			seelog.Errorf("Failed to get list of partitions [topic:%s][err:%s]", this.Topics[0], err)
+			glog.Errorf("Failed to get list of partitions [topic:%s][err:%s]", this.Topics[0], err)
 			return err
 		}
 
 		partitionLeaders, err := retrievePartitionLeaders(partitions)
 		if err != nil {
-			seelog.Errorf("Failed to get leaders of partitions [topic:%s][err:%s]", topic, err)
+			glog.Errorf("Failed to get leaders of partitions [topic:%s][err:%s]", topic, err)
 			return err
 		}
 
@@ -263,7 +263,7 @@ func (this *CallbackManager) partitionRun(consumers kazoo.ConsumergroupInstanceL
 		for i := 0; i < len(myPartitions); i++ {
 			partitionManager := NewPartitionManager()
 			if err := partitionManager.Init(this.config, topic, myPartitions[i].ID, this); err != nil {
-				seelog.Criticalf("Init partition manager failed [url:%s][err:%s]", this.Url, err)
+				glog.Fatalf("Init partition manager failed [url:%s][err:%s]", this.Url, err)
 				return err
 			}
 			this.partitionManagers = append(this.partitionManagers, partitionManager)

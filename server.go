@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cihub/seelog"
+	"github.com/golang/glog"
 )
 
 type Server struct {
@@ -36,7 +36,7 @@ func (this *Server) Init(configFileName string) error {
 	config, err := LoadConfigFile(configFileName)
 
 	if err != nil {
-		seelog.Criticalf("Load Config err [err:%s]", err.Error())
+		glog.Fatalf("Load Config err [err:%s]", err.Error())
 		return err
 	}
 
@@ -68,10 +68,10 @@ func (this *Server) Init(configFileName string) error {
 	// init callback managers
 	for i, _ := range config.Callbacks {
 		callbackConfig := &config.Callbacks[i]
-		seelog.Debugf("Initialize CallbackManager [callbackConfig:%v]", callbackConfig)
+		glog.V(1).Infof("Initialize CallbackManager [callbackConfig:%v]", callbackConfig)
 		callbackManager := NewCallbackManager()
 		if err := callbackManager.Init(callbackConfig); err != nil {
-			seelog.Criticalf("Init CallbackManager failed [url:%s][err:%s]", callbackConfig.Url)
+			glog.Fatalf("Init CallbackManager failed [url:%s][err:%s]", callbackConfig.Url)
 			return err
 		}
 		this.callbackManagers = append(this.callbackManagers, callbackManager)
@@ -93,19 +93,19 @@ func (this *Server) Run() error {
 	_, err := this.callbackManagerRunner.RunAsync(this.callbackManagers)
 
 	if err != nil {
-		seelog.Criticalf("Start CallbackManager failed, Pusher failed to start")
+		glog.Fatalf("Start CallbackManager failed, Pusher failed to start")
 		return err
 	}
 
-	seelog.Debugf("Pusher server get to work")
+	glog.V(1).Infof("Pusher server get to work")
 
 	// run http service
 	if this.adminServer != nil {
 		if err := this.adminServer.ListenAndServe(); err != nil {
-			seelog.Criticalf("Start admin http server failed [err:%s]", err.Error())
+			glog.Fatalf("Start admin http server failed [err:%s]", err.Error())
 			return err
 		}
-		seelog.Info("Pusher start admin http server success")
+		glog.Info("Pusher start admin http server success")
 	}
 
 	// register signal callback
@@ -114,13 +114,13 @@ func (this *Server) Run() error {
 
 	select {
 	case <-this.callbackManagerRunner.WaitForExitChannel():
-		seelog.Critical("Pusher have one CallbackManager unexpected stopped, stopping server")
+		glog.Fatal("Pusher have one CallbackManager unexpected stopped, stopping server")
 	case <-c:
-		seelog.Info("Pusher catch exit signal")
+		glog.Info("Pusher catch exit signal")
 		this.callbackManagerRunner.Close()
 	}
 
-	seelog.Infof("Pusher exit done")
+	glog.Infof("Pusher exit done")
 	// adminServer would not close properly
 
 	return nil

@@ -2,15 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
 
-	"errors"
-
-	"github.com/cihub/seelog"
+	"github.com/golang/glog"
 )
 
 const (
@@ -90,7 +89,7 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 	}
 
 	if c.StatServerPort != 0 && (c.StatServerPort < CFG_MIN_STAT_SERVER_PORT || c.StatServerPort >= CFG_MAX_STAT_SERVER_PORT) {
-		seelog.Warnf("server config stat_server_port should be greater than %d and lower than %d",
+		glog.Warningf("server config stat_server_port should be greater than %d and lower than %d",
 			CFG_MIN_STAT_SERVER_PORT, CFG_MAX_STAT_SERVER_PORT)
 		c.StatServerPort = 0
 	}
@@ -99,23 +98,23 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 		callback := &c.Callbacks[i]
 
 		if "" == callback.Url {
-			seelog.Errorf("callback config url should not be empty")
+			glog.Errorf("callback config url should not be empty")
 			return nil, errors.New("callback url is empty")
 		}
 
 		if 0 == len(callback.Topics) {
-			seelog.Errorf("callback config topics should not be empty")
+			glog.Errorf("callback config topics should not be empty")
 			return nil, errors.New("callback config topics is empty")
 		}
 
 		if 0 == len(callback.Zookeepers) {
-			seelog.Errorf("callback config zookeepers should not be empty")
+			glog.Errorf("callback config zookeepers should not be empty")
 			return nil, errors.New("callback config zookeepers is empty")
 		}
 
 		callback.Timeout, err = time.ParseDuration(callback.TimeoutStr)
 		if err != nil {
-			seelog.Warnf("callback config timeout error(%s),using default.config value:%s",
+			glog.Warningf("callback config timeout error(%s),using default.config value:%s",
 				err.Error(), callback.TimeoutStr)
 
 			callback.Timeout = CFG_DEFAULT_TIMEOUT
@@ -124,7 +123,7 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 
 		callback.FailedSleep, err = time.ParseDuration(callback.FailedSleepStr)
 		if err != nil {
-			seelog.Warnf("callback config failed_sleep error(%s),using default.config value:%s",
+			glog.Warningf("callback config failed_sleep error(%s),using default.config value:%s",
 				err.Error(), callback.FailedSleepStr)
 
 			callback.FailedSleep = CFG_DEFAULT_FAILED_SLEEP
@@ -132,7 +131,7 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 		}
 
 		if callback.FailedSleep < CFG_MIN_FAILED_SLEEP {
-			seelog.Warnf("callback config failed_sleep too small,using min.config value:%s,%s",
+			glog.Warningf("callback config failed_sleep too small,using min.config value:%s,%s",
 				callback.FailedSleep, callback.FailedSleepStr)
 
 			callback.FailedSleep = CFG_MIN_FAILED_SLEEP
@@ -141,14 +140,14 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 
 		callback.ProcessingTimeout, err = time.ParseDuration(callback.ProcessingTimeoutStr)
 		if err != nil {
-			seelog.Warnf("callback config processing_timeout error(%s),using default.config value:%s",
+			glog.Warningf("callback config processing_timeout error(%s),using default.config value:%s",
 				err.Error(), callback.ProcessingTimeoutStr)
 
 			callback.ProcessingTimeout = CFG_DEFAULT_PROCESSING_TIMEOUT
 		}
 
 		if callback.ProcessingTimeout < CFG_MIN_PROCESSING_TIMEOUT {
-			seelog.Warnf("callback config processing_timeout too small,using min.config value:%s,%s",
+			glog.Warningf("callback config processing_timeout too small,using min.config value:%s,%s",
 				callback.ProcessingTimeout, callback.ProcessingTimeoutStr)
 
 			callback.ProcessingTimeout = CFG_MIN_PROCESSING_TIMEOUT

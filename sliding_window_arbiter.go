@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	"github.com/Shopify/sarama"
-	"github.com/cihub/seelog"
+	"github.com/golang/glog"
 )
 
 const CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE = "window_size"
@@ -52,12 +52,12 @@ func (swa *SlidingWindowArbiter) Init(config *CallbackItemConfig, arbiterConfig 
 	swa.arbiterConfig = arbiterConfig
 
 	if arbiterConfig == nil {
-		seelog.Critical(ERROR_SLIDING_WINDOW_ARBITER_NO_CONFIG.Error())
+		glog.Fatal(ERROR_SLIDING_WINDOW_ARBITER_NO_CONFIG.Error())
 		return ERROR_SLIDING_WINDOW_ARBITER_NO_CONFIG
 	}
 
 	if arbiterConfig[CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE] == nil {
-		seelog.Critical(ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_EXISTS.Error())
+		glog.Fatal(ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_EXISTS.Error())
 		return ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_EXISTS
 	}
 
@@ -67,7 +67,7 @@ func (swa *SlidingWindowArbiter) Init(config *CallbackItemConfig, arbiterConfig 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		swa.windowSize = int(windowSizeValue.Int())
 	default:
-		seelog.Critical(ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_VALID.Error())
+		glog.Fatal(ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_VALID.Error())
 		return ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_VALID
 	}
 
@@ -98,10 +98,10 @@ arbiterLoop:
 	for {
 		select {
 		case <-swa.WaitForCloseChannel():
-			seelog.Debugf("Stop event triggered [url:%s]", swa.config.Url)
+			glog.V(1).Infof("Stop event triggered [url:%s]", swa.config.Url)
 			break arbiterLoop
 		case offset := <-swa.offsets:
-			seelog.Debugf("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
+			glog.V(1).Infof("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
 				swa.manager.Topic, swa.manager.Partition, swa.config.Url, offset)
 			if offset >= 0 {
 				offsetWindow[offset-offsetBase] = true
@@ -134,15 +134,15 @@ arbiterLoop:
 		case <-trigger:
 			select {
 			case <-swa.WaitForCloseChannel():
-				seelog.Debugf("Stop event triggered [url:%s]", swa.config.Url)
+				glog.V(1).Infof("Stop event triggered [url:%s]", swa.config.Url)
 				break arbiterLoop
 			case message := <-consumer.Messages():
-				seelog.Debugf("Read message from PartitionConsumer [topic:%s][partition:%d][url:%s][offset:%d]",
+				glog.V(1).Infof("Read message from PartitionConsumer [topic:%s][partition:%d][url:%s][offset:%d]",
 					message.Topic, message.Partition, swa.config.Url, message.Offset)
 				// feed message to transporter
 				select {
 				case <-swa.WaitForCloseChannel():
-					seelog.Debugf("Stop event triggered [url:%s]", swa.config.Url)
+					glog.V(1).Infof("Stop event triggered [url:%s]", swa.config.Url)
 					break arbiterLoop
 				case swa.messages <- message:
 				}
