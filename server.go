@@ -40,6 +40,8 @@ func (this *Server) Init(configFileName string) error {
 		return err
 	}
 
+	this.config = config
+
 	// init admin server
 	if config.StatServerPort > 0 {
 		this.adminServer = &http.Server{
@@ -136,4 +138,8 @@ func (this *Server) GetCallbackManagers() []*CallbackManager {
 
 func (this *Server) GetHttpTransport() http.RoundTripper {
 	return this.httpTransport
+}
+
+func (this *Server) GetConfig() *ServiceConfig {
+	return this.config
 }
