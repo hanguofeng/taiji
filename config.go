@@ -144,6 +144,7 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 				err.Error(), callback.ProcessingTimeoutStr)
 
 			callback.ProcessingTimeout = CFG_DEFAULT_PROCESSING_TIMEOUT
+			callback.ProcessingTimeoutStr = fmt.Sprintf("%dms", CFG_DEFAULT_PROCESSING_TIMEOUT/time.Millisecond)
 		}
 
 		if callback.ProcessingTimeout < CFG_MIN_PROCESSING_TIMEOUT {
