@@ -2,6 +2,7 @@ package main
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/Shopify/sarama"
 	"github.com/golang/glog"
@@ -61,6 +62,9 @@ func (ua *UnboundArbiter) Run() error {
 	offsetBase := int64(-1)
 	offsetWindow := make([]bool, 0, 10)
 
+	// counters
+	var inflight, uncommit uint64
+
 	ua.markReady()
 
 	wg := sync.WaitGroup{}
@@ -78,6 +82,7 @@ func (ua *UnboundArbiter) Run() error {
 				glog.V(1).Infof("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
 					ua.manager.Topic, ua.manager.Partition, ua.config.Url, offset)
 				if offset >= 0 {
+					// extend uncommit offset window
 					if offset-offsetBase >= int64(len(offsetWindow)) {
 						glog.V(1).Infof("Extend offsetWindow [topic:%s][partition:%d][url:%s][offset:%d][offsetBase:%d][offsetWindowSize:%d]",
 							ua.manager.Topic, ua.manager.Partition, ua.config.Url, offset, offsetBase, len(offsetWindow))
@@ -86,6 +91,11 @@ func (ua *UnboundArbiter) Run() error {
 						copy(newOffsetWindow, offsetWindow)
 						offsetWindow = newOffsetWindow
 					}
+
+					// decrement inflight, increment uncommit
+					atomic.AddUint64(&inflight, ^uint64(0))
+					atomic.AddUint64(&uncommit, 1)
+
 					offsetWindow[offset-offsetBase] = true
 					if offset == offsetBase {
 						// rebase
@@ -105,10 +115,19 @@ func (ua *UnboundArbiter) Run() error {
 						// TODO, use ring buffer instead of array slicing
 						offsetBase += int64(advanceCount)
 						offsetWindow = offsetWindow[advanceCount:]
+
+						// decrement uncommit
+						atomic.AddUint64(&uncommit, ^uint64(advanceCount-1))
+
 						glog.V(1).Infof("Fast-forward offsetBase [topic:%s][partition:%d][url:%s][originOffsetBase:%d][offsetBase:%d][offsetWindowSize:%d][advance:%d]",
 							ua.manager.Topic, ua.manager.Partition, ua.config.Url, offsetBase-int64(advanceCount),
 							offsetBase, len(offsetWindow), advanceCount)
 					}
+
+					glog.V(1).Infof("Current unbound offset window status [topic:%s][partition:%d][url:%s][offsetBase:%d][inflight:%d][uncommit:%d]",
+						ua.manager.Topic, ua.manager.Partition, ua.config.Url, offsetBase,
+						atomic.LoadUint64(&inflight),
+						atomic.LoadUint64(&uncommit))
 				}
 			}
 		}
@@ -139,12 +158,16 @@ func (ua *UnboundArbiter) Run() error {
 					break arbiterMessageLoop
 				case ua.messages <- message:
 				}
+
+				// increment counter
+				atomic.AddUint64(&inflight, 1)
 			}
 		}
 	}()
 
 	wg.Wait()
 
+	// trigger transporter exit
 	close(ua.messages)
 
 	return nil
