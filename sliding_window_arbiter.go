@@ -2,7 +2,8 @@ package main
 
 import (
 	"errors"
-	"reflect"
+	"sync"
+	"sync/atomic"
 
 	"github.com/Shopify/sarama"
 	"github.com/golang/glog"
@@ -13,7 +14,7 @@ const CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE = "window_size"
 var (
 	ERROR_SLIDING_WINDOW_ARBITER_NO_CONFIG         = errors.New("ArbiterConfig is required for SlidingWindowArbiter")
 	ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_EXISTS = errors.New("ArbiterConfig.window_size is required for SlidingWindowArbiter")
-	ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_VALID  = errors.New("ArbiterConfig.window_size is not greater than zero")
+	ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_VALID  = errors.New("ArbiterConfig.window_size is invalid")
 )
 
 type SlidingWindowArbiter struct {
@@ -69,14 +70,18 @@ func (swa *SlidingWindowArbiter) Init(config *CallbackItemConfig, arbiterConfig 
 		return ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_EXISTS
 	}
 
-	windowSizeValue := reflect.ValueOf(arbiterConfig[CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE])
+	windowSize, ok := arbiterConfig[CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE].(float64)
 
-	switch windowSizeValue.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		swa.windowSize = int(windowSizeValue.Int())
-	default:
-		glog.Fatal(ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_VALID.Error())
+	if !ok {
 		return ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_VALID
+	}
+
+	swa.windowSize = int(windowSize)
+
+	if swa.windowSize <= 0 {
+		return ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_VALID
+	} else if swa.windowSize == 1 {
+		glog.Warningf("ArbiterConfig.window_size is 1, prefer using SequentialArbiter instead")
 	}
 
 	return nil
@@ -96,73 +101,120 @@ func (swa *SlidingWindowArbiter) Run() error {
 	offsetBase := int64(-1)
 	offsetWindow := make([]bool, swa.windowSize)
 
+	// counters
+	var inflight, uncommit uint64
+
 	// cold start
 	for i := 0; i != swa.windowSize; i++ {
 		trigger <- struct{}{}
 	}
 	swa.markReady()
 
-arbiterLoop:
-	for {
-		select {
-		case <-swa.WaitForCloseChannel():
-			glog.V(1).Infof("Stop event triggered [url:%s]", swa.config.Url)
-			break arbiterLoop
-		case offset := <-swa.offsets:
-			glog.V(1).Infof("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
-				swa.manager.Topic, swa.manager.Partition, swa.config.Url, offset)
-			if offset >= 0 {
-				offsetWindow[offset-offsetBase] = true
-				if offset == offsetBase {
-					// rebase
-					advanceCount := 0
-					for advanceCount, _ = range offsetWindow {
-						if !offsetWindow[advanceCount] {
-							break
-						}
-					}
+	wg := sync.WaitGroup{}
 
-					// trigger offset commit
-					swa.manager.GetCallbackManager().GetOffsetManager().CommitOffset(
-						swa.manager.Topic, swa.manager.Partition, offsetBase+int64(advanceCount)-1)
-
-					// rebase to idx + offsetBase
-					// TODO, use ring buffer instead of array slicing
-					offsetBase += int64(advanceCount)
-					newOffsetWindow := make([]bool, swa.windowSize)
-					copy(newOffsetWindow, offsetWindow[advanceCount:])
-					offsetWindow = newOffsetWindow
-
-					// send advance count trigger
-					for i := 0; i != advanceCount; i++ {
-						trigger <- struct{}{}
-					}
-				}
-			}
-		case <-trigger:
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+	arbiterOffsetLoop:
+		for {
 			select {
 			case <-swa.WaitForCloseChannel():
 				glog.V(1).Infof("Stop event triggered [url:%s]", swa.config.Url)
-				break arbiterLoop
-			case message := <-consumer.Messages():
-				glog.V(1).Infof("Read message from PartitionConsumer [topic:%s][partition:%d][url:%s][offset:%d]",
-					message.Topic, message.Partition, swa.config.Url, message.Offset)
-				// feed message to transporter
-				select {
-				case <-swa.WaitForCloseChannel():
-					glog.V(1).Infof("Stop event triggered [url:%s]", swa.config.Url)
-					break arbiterLoop
-				case swa.messages <- message:
-				}
+				break arbiterOffsetLoop
+			case offset := <-swa.offsets:
+				glog.V(1).Infof("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
+					swa.manager.Topic, swa.manager.Partition, swa.config.Url, offset)
+				if offset >= 0 {
+					offsetWindow[offset-offsetBase] = true
 
-				// set base
-				if -1 == offsetBase {
-					offsetBase = message.Offset
+					// decrement inflight, increment uncommit
+					atomic.AddUint64(&inflight, ^uint64(0))
+					atomic.AddUint64(&uncommit, 1)
+
+					if offset == offsetBase {
+						// rebase
+						advanceCount := 0
+
+						for advanceCount = 0; advanceCount != swa.windowSize; advanceCount++ {
+							if !offsetWindow[advanceCount] {
+								break
+							}
+						}
+
+						// trigger offset commit
+						swa.manager.GetCallbackManager().GetOffsetManager().CommitOffset(
+							swa.manager.Topic, swa.manager.Partition, offsetBase+int64(advanceCount)-1)
+
+						// rebase to idx + offsetBase
+						// TODO, use ring buffer instead of array slicing
+						offsetBase += int64(advanceCount)
+						newOffsetWindow := make([]bool, swa.windowSize)
+						copy(newOffsetWindow, offsetWindow[advanceCount:])
+						offsetWindow = newOffsetWindow
+
+						// decrement uncommit
+						atomic.AddUint64(&uncommit, ^uint64(advanceCount-1))
+
+						glog.V(1).Infof("Fast-forward offsetBase [topic:%s][partition:%d][url:%s][originOffsetBase:%d][offsetBase:%d][advance:%d]",
+							swa.manager.Topic, swa.manager.Partition, swa.config.Url, offsetBase-int64(advanceCount),
+							offsetBase, advanceCount)
+
+						// send advance count trigger
+						for i := 0; i != advanceCount; i++ {
+							trigger <- struct{}{}
+						}
+					}
+
+					glog.V(1).Infof("Current sliding window status [topic:%s][partition:%d][url:%s][offsetBase:%d][inflight:%d][uncommit:%d]",
+						swa.manager.Topic, swa.manager.Partition, swa.config.Url, offsetBase,
+						atomic.LoadUint64(&inflight),
+						atomic.LoadUint64(&uncommit))
 				}
 			}
 		}
-	}
+	}()
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+	arbiterMessageLoop:
+		for {
+			select {
+			case <-swa.WaitForCloseChannel():
+				glog.V(1).Infof("Stop event triggered [url:%s]", swa.config.Url)
+				break arbiterMessageLoop
+			case <-trigger:
+				select {
+				case <-swa.WaitForCloseChannel():
+					glog.V(1).Infof("Stop event triggered [url:%s]", swa.config.Url)
+					break arbiterMessageLoop
+				case message := <-consumer.Messages():
+					glog.V(1).Infof("Read message from PartitionConsumer [topic:%s][partition:%d][url:%s][offset:%d]",
+						message.Topic, message.Partition, swa.config.Url, message.Offset)
+
+					// set base
+					if -1 == offsetBase {
+						offsetBase = message.Offset
+					}
+
+					// feed message to transporter
+					select {
+					case <-swa.WaitForCloseChannel():
+						glog.V(1).Infof("Stop event triggered [url:%s]", swa.config.Url)
+						break arbiterMessageLoop
+					case swa.messages <- message:
+					}
+
+					// increment counter
+					atomic.AddUint64(&inflight, 1)
+				}
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	// trigger transporter exit
 	close(swa.messages)
 
 	return nil
