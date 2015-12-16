@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -202,7 +203,17 @@ func init() {
 
 		if manager := findCallbackManagerByGroup(muxVars["group"]); manager != nil {
 			code := 0
-			offsets := manager.GetOffsetManager().GetOffsets()
+
+			rawOffsets := manager.GetOffsetManager().GetOffsets()
+			// convert OffsetMap keys to string
+			offsets := make(map[string]map[string]int64)
+			for topic, partitionOffsets := range rawOffsets {
+				offsets[topic] = make(map[string]int64)
+				for partition, offset := range partitionOffsets {
+					offsets[topic][strconv.FormatInt(int64(partition), 10)] = offset
+				}
+			}
+
 			jsonify(w, r, offsets, code)
 			return
 		}
