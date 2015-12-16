@@ -9,15 +9,20 @@ import (
 )
 
 type Arbiter interface {
+	// input/output
 	OffsetChannel() chan<- int64
 	MessageChannel() <-chan *sarama.ConsumerMessage
+
+	// start stop control
 	Init(config *CallbackItemConfig, arbiterConfig ArbiterConfig, manager *PartitionManager) error
-	PreferredWorkerNum(workerNum int) int
-	Run() error
-	Close() error
-	Ready() error
 	Prepare()
+	Run() error
+	Ready() error
 	WaitForExitChannel() <-chan struct{}
+	Close() error
+
+	// transporter worker num judgement
+	PreferredTransporterWorkerNum(workerNum int) int
 }
 
 type ArbiterCreator func() Arbiter

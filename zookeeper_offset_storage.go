@@ -19,13 +19,19 @@ var (
 
 type ZookeeperOffsetStorage struct {
 	*StartStopControl
-	config               OffsetStorageConfig
-	commitInterval       time.Duration
+
+	// config
+	config         OffsetStorageConfig
+	commitInterval time.Duration
+
+	// offsets, current, committed
 	offsets              OffsetMap
 	lastCommittedOffsets OffsetMap
 	lastCommittedTime    time.Time
 	l                    sync.RWMutex
-	manager              *CallbackManager
+
+	// parent
+	manager *CallbackManager
 }
 
 func NewZookeeperOffsetStorage() OffsetStorage {

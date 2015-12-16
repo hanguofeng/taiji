@@ -24,9 +24,12 @@ const (
 )
 
 type StartStopControl struct {
-	state       State
+	// service state
+	state     State
+	stateLock sync.RWMutex
+
+	// service state triggers
 	triggers    map[State]chan struct{}
-	stateLock   sync.RWMutex
 	triggerLock sync.Mutex
 }
 

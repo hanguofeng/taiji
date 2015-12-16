@@ -4,10 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
-	"time"
-
-	"github.com/Shopify/sarama"
 )
 
 type OffsetStorage interface {
@@ -35,23 +31,4 @@ func NewOffsetStorage(name string) (OffsetStorage, error) {
 	}
 
 	return registeredOffsetStorageMap[name](), nil
-}
-
-// 以下为本次开发的可选内容
-type FileOffsetStorage struct {
-	config   *OffsetStorageConfig
-	filePath string
-	offsets  OffsetMap
-	l        sync.RWMutex
-	manager  *CallbackManager
-}
-
-type SaramaOffsetManagerMap map[string]map[int32]*sarama.PartitionOffsetManager
-
-type KafkaOffsetStorage struct {
-	config                 *OffsetStorageConfig
-	commitInterval         time.Duration
-	manager                *CallbackManager
-	offsetManager          *sarama.OffsetManager
-	partitionOffsetManager SaramaOffsetManagerMap
 }

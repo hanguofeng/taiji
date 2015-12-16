@@ -26,7 +26,7 @@ func NewSequentialArbiter() Arbiter {
 	}
 }
 
-func (*SequentialArbiter) PreferredWorkerNum(workerNum int) int {
+func (*SequentialArbiter) PreferredTransporterWorkerNum(workerNum int) int {
 	return 1
 }
 
@@ -51,7 +51,7 @@ func (sa *SequentialArbiter) Run() error {
 		return err
 	}
 	defer sa.markStop()
-	consumer := sa.manager.GetConsumer()
+	consumer := sa.manager.GetKafkaPartitionConsumer()
 
 	// buffer only one message
 	sa.offsets = make(chan int64)

@@ -14,9 +14,15 @@ type PartitionConsumer struct {
 	*StartStopControl
 	Topic     string
 	Partition int32
-	consumer  sarama.PartitionConsumer
-	manager   *PartitionManager
-	config    *CallbackItemConfig
+
+	// kafka consumer context
+	kafkaPartitionConsumer sarama.PartitionConsumer
+
+	// parent
+	manager *PartitionManager
+
+	// config
+	config *CallbackItemConfig
 }
 
 func NewPartitionConsumer() *PartitionConsumer {
@@ -79,7 +85,7 @@ func (pc *PartitionConsumer) Run() error {
 		}
 	}
 
-	pc.consumer, err = pc.manager.GetCallbackManager().GetConsumer().ConsumePartition(pc.Topic, pc.Partition, nextOffset)
+	pc.kafkaPartitionConsumer, err = pc.manager.GetCallbackManager().GetKafkaConsumer().ConsumePartition(pc.Topic, pc.Partition, nextOffset)
 	if err == sarama.ErrOffsetOutOfRange {
 		glog.Infof("Partition consumer offset out of range [topic:%s][partition:%d]", pc.Topic, pc.Partition)
 		// if the offset is out of range, simplistically decide whether to use OffsetNewest or OffsetOldest
@@ -93,7 +99,7 @@ func (pc *PartitionConsumer) Run() error {
 			glog.Infof("Partition consumer offset reset to newest available offset [topic:%s][partition:%d]", pc.Topic, pc.Partition)
 		}
 		// retry the consumePartition with the adjusted offset
-		pc.consumer, err = pc.manager.GetCallbackManager().GetConsumer().ConsumePartition(pc.Topic, pc.Partition, nextOffset)
+		pc.kafkaPartitionConsumer, err = pc.manager.GetCallbackManager().GetKafkaConsumer().ConsumePartition(pc.Topic, pc.Partition, nextOffset)
 	}
 
 	if err != nil {
@@ -101,7 +107,7 @@ func (pc *PartitionConsumer) Run() error {
 		return err
 	}
 
-	defer pc.consumer.Close()
+	defer pc.kafkaPartitionConsumer.Close()
 
 	// start stop control
 	if !pc.Running() {
@@ -114,7 +120,7 @@ partitionConsumerLoop:
 		select {
 		case <-pc.WaitForCloseChannel():
 			break partitionConsumerLoop
-		case err := <-pc.consumer.Errors():
+		case err := <-pc.kafkaPartitionConsumer.Errors():
 			glog.Warningf("Received consumer error message [topic:%s][partition:%d][err:%s]",
 				pc.Topic, pc.Partition, err)
 		}
@@ -125,6 +131,6 @@ partitionConsumerLoop:
 	return nil
 }
 
-func (pc *PartitionConsumer) GetConsumer() sarama.PartitionConsumer {
-	return pc.consumer
+func (pc *PartitionConsumer) GetKafkaPartitionConsumer() sarama.PartitionConsumer {
+	return pc.kafkaPartitionConsumer
 }

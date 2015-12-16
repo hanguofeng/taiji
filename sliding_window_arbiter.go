@@ -39,7 +39,7 @@ func NewSlidingWindowArbiter() Arbiter {
 	}
 }
 
-func (swa *SlidingWindowArbiter) PreferredWorkerNum(workerNum int) int {
+func (swa *SlidingWindowArbiter) PreferredTransporterWorkerNum(workerNum int) int {
 	if workerNum > swa.windowSize {
 		return swa.windowSize
 	} else {
@@ -93,7 +93,7 @@ func (swa *SlidingWindowArbiter) Run() error {
 	}
 	defer swa.markStop()
 
-	consumer := swa.manager.GetConsumer()
+	consumer := swa.manager.GetKafkaPartitionConsumer()
 
 	swa.messages = make(chan *sarama.ConsumerMessage, swa.windowSize*2)
 	swa.offsets = make(chan int64, swa.windowSize*2)

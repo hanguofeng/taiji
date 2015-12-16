@@ -29,7 +29,7 @@ type OffsetManager struct {
 
 	// lastCommitted offset
 	lastCommitted OffsetMap
-	l             sync.Mutex
+	l             sync.RWMutex
 }
 
 func NewOffsetManager() *OffsetManager {
@@ -109,6 +109,25 @@ func (om *OffsetManager) FinalizePartition(topic string, partition int32) error 
 	}
 
 	return om.offsetStorage.FinalizePartition(topic, partition)
+}
+
+func (om *OffsetManager) GetOffsets() OffsetMap {
+	om.l.RLock()
+	defer om.l.RUnlock()
+
+	result := make(OffsetMap)
+
+	for topic, partitionOffsets := range om.lastCommitted {
+		resultOffsets := make(map[int32]int64)
+
+		for partition, offset := range partitionOffsets {
+			resultOffsets[partition] = offset
+		}
+
+		result[topic] = resultOffsets
+	}
+
+	return result
 }
 
 func (om *OffsetManager) CommitOffset(topic string, partition int32, offset int64) error {

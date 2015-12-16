@@ -10,15 +10,23 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/gorilla/mux"
 )
 
 type Server struct {
+	// callbackManager
 	callbackManagers      []*CallbackManager
 	callbackManagerRunner *ServiceRunner
-	adminServer           *http.Server
-	handler               *HttpHandler
-	httpTransport         http.RoundTripper
-	config                *ServiceConfig
+
+	// adminServer
+	adminServer       *http.Server
+	adminServerRouter *mux.Router
+
+	// global http connection pool
+	httpTransport http.RoundTripper
+
+	// config
+	config *ServiceConfig
 }
 
 var serverInstance *Server
@@ -26,13 +34,14 @@ var serverInstance *Server
 func GetServer() *Server {
 	// singleton
 	if serverInstance == nil {
-		serverInstance = &Server{}
-		serverInstance.handler = NewHttpHandler()
+		serverInstance = &Server{
+			adminServerRouter: mux.NewRouter(),
+		}
 	}
 	return serverInstance
 }
 
-func (this *Server) Init(configFileName string) error {
+func (s *Server) Init(configFileName string) error {
 	config, err := LoadConfigFile(configFileName)
 
 	if err != nil {
@@ -40,13 +49,13 @@ func (this *Server) Init(configFileName string) error {
 		return err
 	}
 
-	this.config = config
+	s.config = config
 
 	// init admin server
 	if config.StatServerPort > 0 {
-		this.adminServer = &http.Server{
+		s.adminServer = &http.Server{
 			Addr:           fmt.Sprintf(":%d", config.StatServerPort),
-			Handler:        this.handler,
+			Handler:        s.adminServerRouter,
 			ReadTimeout:    1 * time.Second,
 			WriteTimeout:   1 * time.Second,
 			MaxHeaderBytes: 1 << 20,
@@ -56,8 +65,11 @@ func (this *Server) Init(configFileName string) error {
 	// init sarama logger
 	// sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
 
+	// init kazoo logger
+	// kazoo.Logger
+
 	// init http transport
-	this.httpTransport = &http.Transport{
+	s.httpTransport = &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		Dial: (&net.Dialer{
 			Timeout:   30 * time.Second,
@@ -73,26 +85,26 @@ func (this *Server) Init(configFileName string) error {
 		glog.V(1).Infof("Initialize CallbackManager [callbackConfig:%v]", callbackConfig)
 		callbackManager := NewCallbackManager()
 		if err := callbackManager.Init(callbackConfig); err != nil {
-			glog.Fatalf("Init CallbackManager failed [url:%s][err:%s]", callbackConfig.Url)
+			glog.Fatalf("Init CallbackManager failed [url:%s][err:%s]", callbackConfig.Url, err)
 			return err
 		}
-		this.callbackManagers = append(this.callbackManagers, callbackManager)
+		s.callbackManagers = append(s.callbackManagers, callbackManager)
 	}
 
-	this.callbackManagerRunner = NewServiceRunner()
+	s.callbackManagerRunner = NewServiceRunner()
 
 	return nil
 }
 
-func (this *Server) Validate(configFileName string) error {
+func (s *Server) Validate(configFileName string) error {
 	_, err := LoadConfigFile(configFileName)
 	return err
 }
 
-func (this *Server) Run() error {
+func (s *Server) Run() error {
 	// run consumer managers
-	this.callbackManagerRunner.Prepare()
-	_, err := this.callbackManagerRunner.RunAsync(this.callbackManagers)
+	s.callbackManagerRunner.Prepare()
+	_, err := s.callbackManagerRunner.RunAsync(s.callbackManagers)
 
 	if err != nil {
 		glog.Fatalf("Start CallbackManager failed, Pusher failed to start")
@@ -102,8 +114,8 @@ func (this *Server) Run() error {
 	glog.V(1).Infof("Pusher server get to work")
 
 	// run http service
-	if this.adminServer != nil {
-		if err := this.adminServer.ListenAndServe(); err != nil {
+	if s.adminServer != nil {
+		if err := s.adminServer.ListenAndServe(); err != nil {
 			glog.Fatalf("Start admin http server failed [err:%s]", err.Error())
 			return err
 		}
@@ -115,11 +127,11 @@ func (this *Server) Run() error {
 	signal.Notify(c, syscall.SIGINT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGKILL)
 
 	select {
-	case <-this.callbackManagerRunner.WaitForExitChannel():
+	case <-s.callbackManagerRunner.WaitForExitChannel():
 		glog.Fatal("Pusher have one CallbackManager unexpected stopped, stopping server")
 	case <-c:
 		glog.Info("Pusher catch exit signal")
-		this.callbackManagerRunner.Close()
+		s.callbackManagerRunner.Close()
 	}
 
 	glog.Infof("Pusher exit done")
@@ -128,18 +140,18 @@ func (this *Server) Run() error {
 	return nil
 }
 
-func (this *Server) Bind(uri string, callback func(w http.ResponseWriter, r *http.Request)) {
-	this.handler.Mux[uri] = callback
+func (s *Server) GetAdminServerRouter() *mux.Router {
+	return s.adminServerRouter
 }
 
-func (this *Server) GetCallbackManagers() []*CallbackManager {
-	return this.callbackManagers
+func (s *Server) GetCallbackManagers() []*CallbackManager {
+	return s.callbackManagers
 }
 
-func (this *Server) GetHttpTransport() http.RoundTripper {
-	return this.httpTransport
+func (s *Server) GetHttpTransport() http.RoundTripper {
+	return s.httpTransport
 }
 
-func (this *Server) GetConfig() *ServiceConfig {
-	return this.config
+func (s *Server) GetConfig() *ServiceConfig {
+	return s.config
 }

@@ -26,44 +26,44 @@ func NewNoCommitArbiter() Arbiter {
 	}
 }
 
-func (*NoCommitArbiter) PreferredWorkerNum(workerNum int) int {
+func (*NoCommitArbiter) PreferredTransporterWorkerNum(workerNum int) int {
 	return workerNum
 }
 
-func (sa *NoCommitArbiter) OffsetChannel() chan<- int64 {
-	return sa.offsets
+func (nca *NoCommitArbiter) OffsetChannel() chan<- int64 {
+	return nca.offsets
 }
 
-func (sa *NoCommitArbiter) MessageChannel() <-chan *sarama.ConsumerMessage {
-	return sa.manager.GetConsumer().Messages()
+func (nca *NoCommitArbiter) MessageChannel() <-chan *sarama.ConsumerMessage {
+	return nca.manager.GetKafkaPartitionConsumer().Messages()
 }
 
-func (sa *NoCommitArbiter) Init(config *CallbackItemConfig, arbiterConfig ArbiterConfig, manager *PartitionManager) error {
-	sa.manager = manager
-	sa.config = config
-	sa.arbiterConfig = arbiterConfig
+func (nca *NoCommitArbiter) Init(config *CallbackItemConfig, arbiterConfig ArbiterConfig, manager *PartitionManager) error {
+	nca.manager = manager
+	nca.config = config
+	nca.arbiterConfig = arbiterConfig
 
 	return nil
 }
 
-func (sa *NoCommitArbiter) Run() error {
-	if err := sa.ensureStart(); err != nil {
+func (nca *NoCommitArbiter) Run() error {
+	if err := nca.ensureStart(); err != nil {
 		return err
 	}
-	defer sa.markStop()
+	defer nca.markStop()
 
-	sa.offsets = make(chan int64, 256)
-	sa.markReady()
+	nca.offsets = make(chan int64, 256)
+	nca.markReady()
 
 arbiterLoop:
 	for {
 		select {
-		case <-sa.WaitForCloseChannel():
-			glog.V(1).Infof("Stop event triggered [url:%s]", sa.config.Url)
+		case <-nca.WaitForCloseChannel():
+			glog.V(1).Infof("Stop event triggered [url:%s]", nca.config.Url)
 			break arbiterLoop
-		case offset := <-sa.offsets:
+		case offset := <-nca.offsets:
 			glog.V(1).Infof("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
-				sa.manager.Topic, sa.manager.Partition, sa.config.Url, offset)
+				nca.manager.Topic, nca.manager.Partition, nca.config.Url, offset)
 		}
 	}
 

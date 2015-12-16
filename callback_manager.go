@@ -24,7 +24,7 @@ type CallbackManager struct {
 
 	// config
 	config          *CallbackItemConfig
-	saramaConfig    *sarama.Config
+	kafkaConfig     *sarama.Config
 	zookeeperConfig *kazoo.Config
 
 	// zk instances
@@ -33,7 +33,7 @@ type CallbackManager struct {
 	kazooGroupInstance *kazoo.ConsumergroupInstance // ZK ConsumerGroup /consumers/<cgname>/ids/<cginstance> Object
 
 	// kafka sarama consumer
-	saramaConsumer sarama.Consumer
+	kafkaConsumer sarama.Consumer
 
 	// partition manager
 	partitionManagers      []*PartitionManager
@@ -49,58 +49,58 @@ func NewCallbackManager() *CallbackManager {
 	}
 }
 
-func (this *CallbackManager) Init(config *CallbackItemConfig) error {
+func (cm *CallbackManager) Init(config *CallbackItemConfig) error {
 	var err error
 
-	this.config = config
-	this.Topics = config.Topics
-	this.Url = config.Url
+	cm.config = config
+	cm.Topics = config.Topics
+	cm.Url = config.Url
 
 	// set group as MD5(Url)
-	this.GroupName = getGroupName(this.Url)
-	this.saramaConfig = sarama.NewConfig()
-	this.zookeeperConfig = kazoo.NewConfig()
-	this.zookeeperConfig.Chroot = config.ZkPath
-	this.saramaConfig.ClientID = this.GroupName
+	cm.GroupName = getGroupName(cm.Url)
+	cm.kafkaConfig = sarama.NewConfig()
+	cm.zookeeperConfig = kazoo.NewConfig()
+	cm.zookeeperConfig.Chroot = config.ZkPath
+	cm.kafkaConfig.ClientID = cm.GroupName
 
 	// init OffsetManager
-	this.offsetManager = NewOffsetManager()
-	if err = this.offsetManager.Init(config.OffsetConfig, this); err != nil {
+	cm.offsetManager = NewOffsetManager()
+	if err = cm.offsetManager.Init(config.OffsetConfig, cm); err != nil {
 		return err
 	}
 
-	this.partitionManagerRunner = NewServiceRunner()
+	cm.partitionManagerRunner = NewServiceRunner()
 
 	return nil
 }
 
-func (this *CallbackManager) Run() error {
+func (cm *CallbackManager) Run() error {
 	// mark service as started
-	if err := this.ensureStart(); err != nil {
+	if err := cm.ensureStart(); err != nil {
 		return err
 	}
 
-	defer this.markStop()
+	defer cm.markStop()
 
 	// init zookeeper
-	if err := this.connectZookeeper(); err != nil {
+	if err := cm.connectZookeeper(); err != nil {
 		return err
 	}
 
 	// init kafka sarama consumer
-	if err := this.connectKafka(); err != nil {
+	if err := cm.connectKafka(); err != nil {
 		return err
 	}
 
-	go this.offsetManager.Run()
+	go cm.offsetManager.Run()
 
 callbackManagerFailoverLoop:
 	for {
-		if !this.Running() {
+		if !cm.Running() {
 			break callbackManagerFailoverLoop
 		}
 
-		if err := this.registerConsumergroup(); err != nil {
+		if err := cm.registerConsumergroup(); err != nil {
 			time.Sleep(REGISTER_CONSUMER_GROUP_RETRY_TIME)
 			continue
 		}
@@ -109,7 +109,7 @@ callbackManagerFailoverLoop:
 			WATCH_INSTANCE_CHANGE_DELAY_TIME)
 		time.Sleep(WATCH_INSTANCE_CHANGE_DELAY_TIME)
 
-		consumers, consumerChanges, err := this.kazooGroup.WatchInstances()
+		consumers, consumerChanges, err := cm.kazooGroup.WatchInstances()
 
 		if err != nil {
 			glog.Errorf("Failed to get list of registered consumer instances [err:%s]", err)
@@ -122,131 +122,135 @@ callbackManagerFailoverLoop:
 		// get partitionConsuming assignments
 		// start ServiceRunner of PartitionManager
 		// TODO refactor this
-		if err := this.partitionRun(consumers); err != nil {
+		if err := cm.partitionRun(consumers); err != nil {
 			glog.Errorf("Failed to init partition consumer [err:%s]", err)
 			time.Sleep(RUN_PARTITION_MANAGER_RETRY_TIME)
 			continue
 		}
 
 		select {
-		case <-this.WaitForCloseChannel():
-			this.partitionManagerRunner.Close()
+		case <-cm.WaitForCloseChannel():
+			cm.partitionManagerRunner.Close()
 			break callbackManagerFailoverLoop
 
 		case <-consumerChanges:
 			glog.Infof("Triggering rebalance due to consumer list change")
-			this.partitionManagerRunner.Close()
+			cm.partitionManagerRunner.Close()
 			glog.Infof("Waiting for %v to avoid consumer inflight rebalance herd",
 				CONSUMER_LIST_CHANGE_RELOAD_TIME)
 			time.Sleep(CONSUMER_LIST_CHANGE_RELOAD_TIME)
-		case <-this.partitionManagerRunner.WaitForExitChannel():
+		case <-cm.partitionManagerRunner.WaitForExitChannel():
 			glog.Warning("PartitionManager unexpectedly stopped")
 		}
 
 		// deregister Consumergroup instance from zookeeper
-		if err := this.kazooGroupInstance.Deregister(); err != nil {
+		if err := cm.kazooGroupInstance.Deregister(); err != nil {
 			glog.Errorf("Failed deregistering consumer instance [err:%s]", err)
 		} else {
-			glog.Infof("Deregistered consumer instance [instanceId:%s]", this.kazooGroupInstance.ID)
+			glog.Infof("Deregistered consumer instance [instanceId:%s]", cm.kazooGroupInstance.ID)
 		}
 	}
 
 	// sync close offsetManager
-	if err := this.offsetManager.Close(); err != nil {
+	if err := cm.offsetManager.Close(); err != nil {
 		glog.Errorf("Failed closing the offset manager [err:%s]", err)
 	}
 
 	// close sarama Consumer
-	if err := this.saramaConsumer.Close(); err != nil {
+	if err := cm.kafkaConsumer.Close(); err != nil {
 		glog.Errorf("Failed closing the Sarama client [err:%s]", err)
 	}
 
 	// close zookeeper connection
-	if err := this.kazoo.Close(); err != nil {
+	if err := cm.kazoo.Close(); err != nil {
 		glog.Errorf("Failed closing the Zookeeper connection [err:%s]", err)
 	}
 
 	return nil
 }
 
-func (this *CallbackManager) GetOffsetManager() *OffsetManager {
-	return this.offsetManager
+func (cm *CallbackManager) GetPartitionManagers() []*PartitionManager {
+	return cm.partitionManagers
 }
 
-func (this *CallbackManager) GetKazooGroup() *kazoo.Consumergroup {
-	return this.kazooGroup
+func (cm *CallbackManager) GetOffsetManager() *OffsetManager {
+	return cm.offsetManager
 }
 
-func (this *CallbackManager) GetKazooGroupInstance() *kazoo.ConsumergroupInstance {
-	return this.kazooGroupInstance
+func (cm *CallbackManager) GetKazooGroup() *kazoo.Consumergroup {
+	return cm.kazooGroup
 }
 
-func (this *CallbackManager) GetConsumer() sarama.Consumer {
-	return this.saramaConsumer
+func (cm *CallbackManager) GetKazooGroupInstance() *kazoo.ConsumergroupInstance {
+	return cm.kazooGroupInstance
 }
 
-func (this *CallbackManager) connectZookeeper() error {
+func (cm *CallbackManager) GetKafkaConsumer() sarama.Consumer {
+	return cm.kafkaConsumer
+}
+
+func (cm *CallbackManager) connectZookeeper() error {
 	var err error
 
 	// zookeeper ConsumerGroup instance initialization
-	if this.kazoo, err = kazoo.NewKazoo(this.config.Zookeepers, this.zookeeperConfig); err != nil {
+	if cm.kazoo, err = kazoo.NewKazoo(cm.config.Zookeepers, cm.zookeeperConfig); err != nil {
 		return err
 	}
-	this.kazooGroup = this.kazoo.Consumergroup(this.GroupName)
-	this.kazooGroupInstance = this.kazooGroup.NewInstance()
+	cm.kazooGroup = cm.kazoo.Consumergroup(cm.GroupName)
+	cm.kazooGroupInstance = cm.kazooGroup.NewInstance()
 
 	return nil
 }
 
-func (this *CallbackManager) connectKafka() error {
+func (cm *CallbackManager) connectKafka() error {
 	var err error
 
 	// kafka consumer initialization
-	brokers, err := this.kazoo.BrokerList()
+	brokers, err := cm.kazoo.BrokerList()
 	if err != nil {
 		return err
 	}
 
 	// connect kafka using sarama Consumer
-	if this.saramaConsumer, err = sarama.NewConsumer(brokers, this.saramaConfig); err != nil {
+	if cm.kafkaConsumer, err = sarama.NewConsumer(brokers, cm.kafkaConfig); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (this *CallbackManager) registerConsumergroup() error {
+func (cm *CallbackManager) registerConsumergroup() error {
 	// Register Consumergroup zk node
-	if exists, err := this.kazooGroup.Exists(); err != nil {
+	if exists, err := cm.kazooGroup.Exists(); err != nil {
 		glog.Errorf("Failed to check for existence of consumergroup [err:%s]", err)
 		return err
 	} else if !exists {
-		glog.Infof("Consumergroup does not yet exists, creating [consumergroup:%s] ", this.GroupName)
-		if err := this.kazooGroup.Create(); err != nil {
+		glog.Infof("Consumergroup does not yet exists, creating [consumergroup:%s] ", cm.GroupName)
+		if err := cm.kazooGroup.Create(); err != nil {
 			glog.Errorf("Failed to create consumergroup in zookeeper [err:%s]", err)
 			return err
 		}
 	}
 
 	// register new kazoo.ConsumerGroup instance
-	if err := this.kazooGroupInstance.Register(this.Topics); err != nil {
+	if err := cm.kazooGroupInstance.Register(cm.Topics); err != nil {
 		glog.Errorf("Failed to register consumer instance [err:%s]", err)
 		return err
 	} else {
-		glog.Infof("Consumer instance registered [instanceId:%s]", this.kazooGroupInstance.ID)
+		glog.Infof("Consumer instance registered [instanceId:%s]", cm.kazooGroupInstance.ID)
 	}
 
 	return nil
 }
 
-func (this *CallbackManager) partitionRun(consumers kazoo.ConsumergroupInstanceList) error {
-	this.partitionManagers = make([]*PartitionManager, 0)
+func (cm *CallbackManager) partitionRun(consumers kazoo.ConsumergroupInstanceList) error {
+	cm.partitionManagers = make([]*PartitionManager, 0)
 
-	for _, topic := range this.Topics {
+	for _, topic := range cm.Topics {
 		// Fetch a list of partition IDs
-		partitions, err := this.kazoo.Topic(topic).Partitions()
+		partitions, err := cm.kazoo.Topic(topic).Partitions()
 		if err != nil {
-			glog.Errorf("Failed to get list of partitions [topic:%s][err:%s]", this.Topics[0], err)
+			glog.Errorf("Failed to get list of partitions [topic:%s][err:%s]", cm.Topics[0], err)
 			return err
 		}
 
@@ -258,21 +262,21 @@ func (this *CallbackManager) partitionRun(consumers kazoo.ConsumergroupInstanceL
 
 		// divide partition for each callback manager instance
 		dividedPartitions := dividePartitionsBetweenConsumers(consumers, partitionLeaders)
-		myPartitions := dividedPartitions[this.kazooGroupInstance.ID]
+		myPartitions := dividedPartitions[cm.kazooGroupInstance.ID]
 
 		for i := 0; i < len(myPartitions); i++ {
 			partitionManager := NewPartitionManager()
-			if err := partitionManager.Init(this.config, topic, myPartitions[i].ID, this); err != nil {
-				glog.Fatalf("Init partition manager failed [url:%s][err:%s]", this.Url, err)
+			if err := partitionManager.Init(cm.config, topic, myPartitions[i].ID, cm); err != nil {
+				glog.Fatalf("Init partition manager failed [url:%s][err:%s]", cm.Url, err)
 				return err
 			}
-			this.partitionManagers = append(this.partitionManagers, partitionManager)
+			cm.partitionManagers = append(cm.partitionManagers, partitionManager)
 		}
 	}
 
-	this.partitionManagerRunner.RetryTimes = len(this.partitionManagers) * 3
-	this.partitionManagerRunner.Prepare()
-	if _, err := this.partitionManagerRunner.RunAsync(this.partitionManagers); err != nil {
+	cm.partitionManagerRunner.RetryTimes = len(cm.partitionManagers) * 3
+	cm.partitionManagerRunner.Prepare()
+	if _, err := cm.partitionManagerRunner.RunAsync(cm.partitionManagers); err != nil {
 		return err
 	}
 

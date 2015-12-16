@@ -15,14 +15,20 @@ import (
 const HTTP_FORM_ENCODING = "application/x-www-form-urlencoded"
 
 type HTTPTransporter struct {
-	Callback          *WorkerCallback
-	Serializer        string
-	ContentType       string
+	Callback    *WorkerCallback
+	Serializer  string
+	ContentType string
+
+	// config
 	config            *CallbackItemConfig
 	transporterConfig TransporterConfig
-	discardBuffer     []byte
-	httpClient        *http.Client
-	manager           *PartitionManager
+
+	// http context
+	discardBuffer []byte
+	httpClient    *http.Client
+
+	// parent
+	manager *PartitionManager
 }
 
 type MessageBody struct {

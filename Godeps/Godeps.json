@@ -30,6 +30,14 @@
 			"Rev": "723cc1e459b8eea2dea4583200fd60757d40097a"
 		},
 		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "1c83b3eabd45b6d76072b66b746c20815fb2872d"
+		},
+		{
+			"ImportPath": "github.com/gorilla/mux",
+			"Rev": "9c068cf16d982f8bd444b8c352acbeec34c4fe5b"
+		},
+		{
 			"ImportPath": "github.com/klauspost/crc32",
 			"Rev": "3e5c38b8b170916b332a5ccb25f921314b98ba01"
 		},

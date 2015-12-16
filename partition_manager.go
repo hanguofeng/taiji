@@ -33,100 +33,100 @@ func NewPartitionManager() *PartitionManager {
 	}
 }
 
-func (this *PartitionManager) Init(config *CallbackItemConfig, topic string, partition int32, manager *CallbackManager) error {
-	this.Topic = topic
-	this.Partition = partition
+func (pm *PartitionManager) Init(config *CallbackItemConfig, topic string, partition int32, manager *CallbackManager) error {
+	pm.Topic = topic
+	pm.Partition = partition
 
 	// parent
-	this.manager = manager
+	pm.manager = manager
 
 	// config
-	this.config = config
+	pm.config = config
 
 	// init partitionConsumer
-	this.partitionConsumer = NewPartitionConsumer()
-	this.partitionConsumer.Init(config, topic, partition, this)
+	pm.partitionConsumer = NewPartitionConsumer()
+	pm.partitionConsumer.Init(config, topic, partition, pm)
 
 	// init arbiter
 	var err error
-	if this.arbiter, err = NewArbiter(config.ArbiterName); err != nil {
+	if pm.arbiter, err = NewArbiter(config.ArbiterName); err != nil {
 		return err
 	}
-	if err = this.arbiter.Init(config, config.ArbiterConfig, this); err != nil {
+	if err = pm.arbiter.Init(config, config.ArbiterConfig, pm); err != nil {
 		return err
 	}
 
 	// init transporter
-	this.transporterRunner = NewServiceRunner()
+	pm.transporterRunner = NewServiceRunner()
 
 	return nil
 }
 
-func (this *PartitionManager) Run() error {
-	if err := this.ensureStart(); err != nil {
+func (pm *PartitionManager) Run() error {
+	if err := pm.ensureStart(); err != nil {
 		return err
 	}
 
-	defer this.markStop()
+	defer pm.markStop()
 
 	// start partition consumer
-	this.partitionConsumer.Prepare()
-	go this.partitionConsumer.Run()
-	defer this.partitionConsumer.Close()
-	if err := this.partitionConsumer.Ready(); err != nil {
+	pm.partitionConsumer.Prepare()
+	go pm.partitionConsumer.Run()
+	defer pm.partitionConsumer.Close()
+	if err := pm.partitionConsumer.Ready(); err != nil {
 		glog.Errorf("Partition consumer start failed [err:%s]", err)
 		return err
 	}
 
 	// start arbiter
-	this.arbiter.Prepare()
-	go this.arbiter.Run()
-	defer this.arbiter.Close()
-	if err := this.arbiter.Ready(); err != nil {
+	pm.arbiter.Prepare()
+	go pm.arbiter.Run()
+	defer pm.arbiter.Close()
+	if err := pm.arbiter.Ready(); err != nil {
 		glog.Errorf("Arbiter start failed [err:%s]", err)
 		return err
 	}
 
 	// start transporter group
-	this.transporter = make([]Transporter, 0)
+	pm.transporter = make([]Transporter, 0)
 	// TODO, dynamic create worker using this.config.WorkerNum and arbiter judgement
-	workerNum := this.arbiter.PreferredWorkerNum(this.config.WorkerNum)
+	workerNum := pm.arbiter.PreferredTransporterWorkerNum(pm.config.WorkerNum)
 	for i := 0; i != workerNum; i++ {
-		if transporter, err := NewTransporter(this.config.TransporterName); err == nil {
-			if err := transporter.Init(this.config, this.config.TransporterConfig, this); err != nil {
+		if transporter, err := NewTransporter(pm.config.TransporterName); err == nil {
+			if err := transporter.Init(pm.config, pm.config.TransporterConfig, pm); err != nil {
 				return err
 			}
-			this.transporter = append(this.transporter, transporter)
+			pm.transporter = append(pm.transporter, transporter)
 		} else {
 			return err
 		}
 	}
-	this.transporterRunner.RetryTimes = len(this.transporter) * 3
-	this.transporterRunner.Prepare()
-	if _, err := this.transporterRunner.RunAsync(this.transporter); err != nil {
+	pm.transporterRunner.RetryTimes = len(pm.transporter) * 3
+	pm.transporterRunner.Prepare()
+	if _, err := pm.transporterRunner.RunAsync(pm.transporter); err != nil {
 		glog.Errorf("Transporter start failed [err:%v]", err)
 		return err
 	}
-	defer this.transporterRunner.Close()
+	defer pm.transporterRunner.Close()
 
 	select {
-	case <-this.partitionConsumer.WaitForExitChannel():
-	case <-this.arbiter.WaitForExitChannel():
-	case <-this.transporterRunner.WaitForExitChannel():
-	case <-this.WaitForCloseChannel():
+	case <-pm.partitionConsumer.WaitForExitChannel():
+	case <-pm.arbiter.WaitForExitChannel():
+	case <-pm.transporterRunner.WaitForExitChannel():
+	case <-pm.WaitForCloseChannel():
 	}
 
 	return nil
 }
 
-func (this *PartitionManager) GetConsumer() sarama.PartitionConsumer {
-	return this.partitionConsumer.GetConsumer()
+func (pm *PartitionManager) GetKafkaPartitionConsumer() sarama.PartitionConsumer {
+	return pm.partitionConsumer.GetKafkaPartitionConsumer()
 }
 
-func (this *PartitionManager) GetArbiter() Arbiter {
-	return this.arbiter
+func (pm *PartitionManager) GetArbiter() Arbiter {
+	return pm.arbiter
 }
 
-func (this *PartitionManager) GetCallbackManager() *CallbackManager {
-	return this.manager
+func (pm *PartitionManager) GetCallbackManager() *CallbackManager {
+	return pm.manager
 }

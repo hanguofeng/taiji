@@ -73,7 +73,7 @@ func TestSequentialArbiter(t *testing.T) {
 	partitionConsumerMock.Init()
 	manager := &PartitionManager{
 		partitionConsumer: &PartitionConsumer{
-			consumer: partitionConsumerMock,
+			kafkaPartitionConsumer: partitionConsumerMock,
 		},
 		manager: callbackManager,
 	}
@@ -82,7 +82,7 @@ func TestSequentialArbiter(t *testing.T) {
 	t.Log("Started SequentialArbiter")
 	go arbiter.Run()
 	defer arbiter.Close()
-	defer manager.GetConsumer().Close()
+	defer manager.GetKafkaPartitionConsumer().Close()
 	if err := arbiter.Ready(); err != nil {
 		t.Fatalf("Arbiter start failed [err:%s]", err)
 	}

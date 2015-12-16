@@ -3,9 +3,12 @@ package main
 import "github.com/golang/glog"
 
 type NullTransporter struct {
+	// config
 	config            *CallbackItemConfig
 	transporterConfig TransporterConfig
-	manager           *PartitionManager
+
+	// parent
+	manager *PartitionManager
 }
 
 func NewNullTransporter() Transporter {

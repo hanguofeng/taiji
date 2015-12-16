@@ -29,7 +29,7 @@ func NewUnboundArbiter() Arbiter {
 	}
 }
 
-func (*UnboundArbiter) PreferredWorkerNum(workerNum int) int {
+func (*UnboundArbiter) PreferredTransporterWorkerNum(workerNum int) int {
 	return workerNum
 }
 
@@ -55,7 +55,7 @@ func (ua *UnboundArbiter) Run() error {
 	}
 	defer ua.markStop()
 
-	consumer := ua.manager.GetConsumer()
+	consumer := ua.manager.GetKafkaPartitionConsumer()
 
 	ua.messages = make(chan *sarama.ConsumerMessage, 256)
 	ua.offsets = make(chan int64, 256)

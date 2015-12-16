@@ -8,7 +8,7 @@ type consumerStat struct {
 }
 
 func init() {
-	GetServer().Bind("/stat/consumer", func(w http.ResponseWriter, r *http.Request) {
+	GetServer().GetAdminServerRouter().HandleFunc("/stat/consumer", func(w http.ResponseWriter, r *http.Request) {
 		var res []consumerStat
 
 		for _, manager := range GetServer().GetCallbackManagers() {
