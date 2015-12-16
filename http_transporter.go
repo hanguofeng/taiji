@@ -90,16 +90,20 @@ func (ht *HTTPTransporter) Run() error {
 
 		rpcStartTime := time.Now()
 
+		retried := 0
+
 		for {
 			deliveryState := false
 
 			for i := 0; i <= ht.Callback.RetryTimes; i++ {
-				deliveryState = ht.delivery(&messageData, message, i)
+				deliveryState = ht.delivery(&messageData, message, retried)
 
 				if deliveryState {
 					// success
 					break
 				}
+
+				retried++
 			}
 
 			if deliveryState {
@@ -130,10 +134,10 @@ func (ht *HTTPTransporter) Run() error {
 			totalTime = float64(rpcStopTime.UnixNano()/1000000 - messageData.TimeStamp)
 		}
 
-		glog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d][cost:%.2fms][totalCost:%.2fms]",
+		glog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d][cost:%.2fms][totalCost:%.2fms][retried:%d]",
 			message.Topic, message.Partition, ht.Callback.Url, message.Offset,
 			rpcStopTime.Sub(rpcStartTime).Seconds()*1000,
-			totalTime)
+			totalTime, retried)
 
 		glog.V(1).Infof("HTTP Transporter commit message to arbiter [topic:%s][partition:%d][url:%s][offset:%d]",
 			message.Topic, message.Partition, ht.Callback.Url, message.Offset)
@@ -195,6 +199,7 @@ func (ht *HTTPTransporter) delivery(messageData *MessageBody, message *sarama.Co
 			if err != nil {
 				responseBody = []byte{}
 			}
+			// TODO, never let responseBody corrupt my log
 			glog.Errorf(
 				"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][responseCode:%d][cost:%.2fms][responseBody:%s']",
 				message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, res.StatusCode, rpcTime, responseBody)
