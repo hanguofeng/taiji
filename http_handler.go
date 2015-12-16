@@ -26,7 +26,7 @@ func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(404)
-	io.WriteString(w, "Path not exists: "+r.URL.Path)
+	io.WriteString(w, "Path not exists: "+r.URL.Path+"\n")
 }
 
 func jsonify(w http.ResponseWriter, r *http.Request, data interface{}, code int) {
@@ -45,21 +45,26 @@ func jsonify(w http.ResponseWriter, r *http.Request, data interface{}, code int)
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(200)
+
+	var buffer []byte
+	var err error
 
 	if prettyPrint {
 		prefix := ""
 		indent := "    "
-		if buffer, err := json.MarshalIndent(res, prefix, indent); err != nil {
-			glog.Errorf("Marshal http response error [err:%s]", err)
-		} else {
-			w.Write(buffer)
-		}
+		buffer, err = json.MarshalIndent(res, prefix, indent)
 	} else {
-		if buffer, err := json.Marshal(res); err != nil {
-			glog.Errorf("Marshal http response error [err:%s]", err)
-		} else {
-			w.Write(buffer)
+		buffer, err = json.Marshal(res)
+	}
+
+	if err != nil {
+		w.WriteHeader(500)
+		glog.Errorf("Marshal http response error [err:%s]", err)
+	} else {
+		w.WriteHeader(200)
+		w.Write(buffer)
+		if prettyPrint {
+			io.WriteString(w, "\n")
 		}
 	}
 
