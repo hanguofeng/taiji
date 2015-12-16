@@ -98,34 +98,26 @@ func (sr *ServiceRunner) run(services []Runnable, daemon bool) (<-chan error, er
 		// flag we are done exiting
 		defer sr.markStop()
 
-		leftRetryTimes := sr.RetryTimes
-
 	serviceRespawnLoop:
-		for {
+		for i := 0; i != sr.RetryTimes; i++ {
 			select {
 			case <-sr.WaitForCloseChannel():
-				// close each runnable
-				wg := sync.WaitGroup{}
-				for _, service := range services {
-					wg.Add(1)
-					go func(service Runnable) {
-						defer wg.Done()
-						service.Close()
-					}(service)
-				}
-				wg.Wait()
 				break serviceRespawnLoop
 			case idx := <-event:
-				if leftRetryTimes > 0 {
-					go servicesWatcher(idx)
-				}
-			}
-
-			if leftRetryTimes--; leftRetryTimes <= 0 {
-				// not applicable for another respawn
-				break serviceRespawnLoop
+				go servicesWatcher(idx)
 			}
 		}
+
+		// close each runnable
+		wg := sync.WaitGroup{}
+		for _, service := range services {
+			wg.Add(1)
+			go func(service Runnable) {
+				defer wg.Done()
+				service.Close()
+			}(service)
+		}
+		wg.Wait()
 	}
 
 	for idx, _ := range services {
