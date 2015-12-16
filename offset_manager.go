@@ -85,7 +85,17 @@ func (om *OffsetManager) InitializePartition(topic string, partition int32) (int
 		}(name, storage)
 	}
 
-	return om.offsetStorage.InitializePartition(topic, partition)
+	offset, err := om.offsetStorage.InitializePartition(topic, partition)
+
+	if err == nil {
+		if om.lastCommitted[topic] == nil {
+			om.lastCommitted[topic] = make(map[int32]int64)
+		}
+
+		om.lastCommitted[topic][partition] = -1
+	}
+
+	return offset, err
 }
 
 func (om *OffsetManager) FinalizePartition(topic string, partition int32) error {
