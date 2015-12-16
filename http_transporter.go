@@ -21,6 +21,7 @@ type HTTPTransporter struct {
 	config            *CallbackItemConfig
 	transporterConfig TransporterConfig
 	discardBuffer     []byte
+	httpClient        *http.Client
 	manager           *PartitionManager
 }
 
@@ -51,6 +52,10 @@ func (ht *HTTPTransporter) Init(config *CallbackItemConfig, transporterConfig Tr
 	ht.discardBuffer = make([]byte, 4096)
 	ht.manager = manager
 
+	// build http client
+	ht.httpClient = &http.Client{Transport: GetServer().GetHttpTransport()}
+	ht.httpClient.Timeout = ht.Callback.Timeout
+
 	return nil
 }
 
@@ -63,20 +68,36 @@ func (ht *HTTPTransporter) Run() error {
 		glog.V(1).Infof("Recevied message [topic:%s][partition:%d][url:%s][offset:%d]",
 			message.Topic, message.Partition, ht.Callback.Url, message.Offset)
 
+		var messageData MessageBody
+
+		// deserialize message
+		switch ht.Serializer {
+		case "", "raw":
+			messageData.Data = string(message.Value)
+		case "json":
+			fallthrough
+		default:
+			json.Unmarshal(message.Value, &messageData)
+			// ignore message json decode failure
+		}
+
+		// delivery Content-Type
+		if "" != ht.ContentType {
+			messageData.ContentType = ht.ContentType
+		} else if "" == ht.ContentType {
+			ht.ContentType = HTTP_FORM_ENCODING
+		}
+
 		rpcStartTime := time.Now()
 
 		for {
 			deliveryState := false
-			leftRetryTimes := ht.Callback.RetryTimes
 
-			for {
-				deliveryState = ht.delivery(message, ht.Callback.RetryTimes-leftRetryTimes)
+			for i := 0; i <= ht.Callback.RetryTimes; i++ {
+				deliveryState = ht.delivery(&messageData, message, i)
 
 				if deliveryState {
 					// success
-					break
-				} else if leftRetryTimes--; leftRetryTimes <= 0 {
-					// failed
 					break
 				}
 			}
@@ -103,8 +124,16 @@ func (ht *HTTPTransporter) Run() error {
 
 		rpcStopTime := time.Now()
 
-		glog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d][cost:%.2fms]",
-			message.Topic, message.Partition, ht.Callback.Url, message.Offset, rpcStopTime.Sub(rpcStartTime).Seconds()*1000)
+		// total time from proxy to pusher complete sending
+		totalTime := float64(-1)
+		if ht.Serializer == "json" {
+			totalTime = float64(rpcStopTime.UnixNano()/1000000 - messageData.TimeStamp)
+		}
+
+		glog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d][cost:%.2fms][totalCost:%.2fms]",
+			message.Topic, message.Partition, ht.Callback.Url, message.Offset,
+			rpcStopTime.Sub(rpcStartTime).Seconds()*1000,
+			totalTime)
 
 		glog.V(1).Infof("HTTP Transporter commit message to arbiter [topic:%s][partition:%d][url:%s][offset:%d]",
 			message.Topic, message.Partition, ht.Callback.Url, message.Offset)
@@ -125,31 +154,8 @@ func (ht *HTTPTransporter) Close() error {
 	return nil
 }
 
-func (ht *HTTPTransporter) delivery(message *sarama.ConsumerMessage, retryTime int) bool {
-	client := &http.Client{Transport: GetServer().GetHttpTransport()}
-	client.Timeout = ht.Callback.Timeout
-
-	var messageData MessageBody
-
-	// deserialize message
-	switch ht.Serializer {
-	case "", "raw":
-		messageData.Data = string(message.Value)
-	case "json":
-		fallthrough
-	default:
-		json.Unmarshal(message.Value, &messageData)
-		// ignore message json decode failure
-	}
-
-	// delivery Content-Type
-	if "" != ht.ContentType {
-		messageData.ContentType = ht.ContentType
-	} else if "" == ht.ContentType {
-		ht.ContentType = HTTP_FORM_ENCODING
-	}
-
-	req, _ := http.NewRequest("POST", ht.Callback.Url, ioutil.NopCloser(strings.NewReader(messageData.Data)))
+func (ht *HTTPTransporter) delivery(messageData *MessageBody, message *sarama.ConsumerMessage, retryTime int) bool {
+	req, _ := http.NewRequest("POST", ht.Callback.Url, strings.NewReader(messageData.Data))
 	req.Header.Set("Content-Type", messageData.ContentType)
 	req.Header.Set("User-Agent", "Taiji pusher consumer(go)/v"+VERSION)
 	req.Header.Set("X-Retry-Times", fmt.Sprintf("%d", retryTime))
@@ -162,14 +168,10 @@ func (ht *HTTPTransporter) delivery(message *sarama.ConsumerMessage, retryTime i
 	req.Header.Set("Meilishuo", "uid:0;ip:0.0.0.0;v:0;master:0")
 
 	rpcStartTime := time.Now()
-	res, err := client.Do(req)
+	res, err := ht.httpClient.Do(req)
 	rpcStopTime := time.Now()
 
 	rpcTime := rpcStopTime.Sub(rpcStartTime).Seconds() * 1000
-	totalTime := float64(-1)
-	if "json" == ht.Serializer {
-		totalTime = float64(rpcStopTime.UnixNano()/1000000 - messageData.TimeStamp)
-	}
 
 	success := false
 
@@ -178,15 +180,15 @@ func (ht *HTTPTransporter) delivery(message *sarama.ConsumerMessage, retryTime i
 
 		if 200 == res.StatusCode {
 			// success
+			success = true
 			// discard body
+			// better use io.Copy(ioutil.Discard, res.Body), but io.Copy/ioutil.Discard is too slow
 			for {
 				_, e := res.Body.Read(ht.discardBuffer)
 				if e != nil {
 					break
 				}
 			}
-
-			success = true
 		} else {
 			// error response code, read body
 			responseBody, err := ioutil.ReadAll(res.Body)
@@ -194,13 +196,13 @@ func (ht *HTTPTransporter) delivery(message *sarama.ConsumerMessage, retryTime i
 				responseBody = []byte{}
 			}
 			glog.Errorf(
-				"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][responseCode:%d][rpcCost:%.2fms][totalCost:%.2fms][responseBody:%s']",
-				message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, res.StatusCode, rpcTime, totalTime, responseBody)
+				"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][responseCode:%d][cost:%.2fms][responseBody:%s']",
+				message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, res.StatusCode, rpcTime, responseBody)
 		}
 	} else {
 		glog.Errorf(
-			"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][rpcCost:%.2fms][totalCost:%.2fms][err:%s]",
-			message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, rpcTime, totalTime, err.Error())
+			"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][cost:%.2fms][err:%s]",
+			message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, rpcTime, err.Error())
 	}
 
 	return success
