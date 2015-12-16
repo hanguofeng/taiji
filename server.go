@@ -115,11 +115,11 @@ func (s *Server) Run() error {
 
 	// run http service
 	if s.adminServer != nil {
-		if err := s.adminServer.ListenAndServe(); err != nil {
-			glog.Fatalf("Start admin http server failed [err:%s]", err.Error())
-			return err
-		}
-		glog.Info("Pusher start admin http server success")
+		go func() {
+			if err := s.adminServer.ListenAndServe(); err != nil {
+				glog.Fatalf("Start admin http server failed [err:%s]", err.Error())
+			}
+		}()
 	}
 
 	// register signal callback
