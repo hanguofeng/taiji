@@ -85,26 +85,29 @@ func (sr *ServiceRunner) run(services []Runnable, daemon bool) (<-chan error, er
 		return nil, err
 	}
 
-	event := make(chan int)
-	errorEvent := make(chan error, sr.RetryTimes+1)
+	channelSize := sr.RetryTimes + len(services) + 1
+	event := make(chan int, channelSize)
+	errorEvent := make(chan error, channelSize)
 	servicesWatcher := func(idx int) {
-		defer func() {
-			event <- idx
-		}()
 		err := services[idx].Run()
 		errorEvent <- err
+		event <- idx
 	}
 	controlRoutine := func() {
 		// flag we are done exiting
 		defer sr.markStop()
 
 	serviceRespawnLoop:
-		for i := 0; i != sr.RetryTimes; i++ {
+		for i := 0; i <= sr.RetryTimes; i++ {
 			select {
 			case <-sr.WaitForCloseChannel():
 				break serviceRespawnLoop
 			case idx := <-event:
-				go servicesWatcher(idx)
+				if i != sr.RetryTimes {
+					go servicesWatcher(idx)
+				} else {
+					break serviceRespawnLoop
+				}
 			}
 		}
 
