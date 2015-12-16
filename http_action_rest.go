@@ -21,13 +21,13 @@ type topicPartitionsData struct {
 }
 
 type partitionManagerData struct {
-	Url                       string                 `json:"url"`
-	GroupName                 string                 `json:"group"`
-	Topic                     string                 `json:"topic"`
-	Partition                 int32                  `json:"partition"`
-	PartitionConsumerCounters map[string]interface{} `json:"partition_consumer"`
-	ArbiterCounters           map[string]interface{} `json:"arbiter"`
-	TransporterCounters       map[string]interface{} `json:"transporter"`
+	Url               string      `json:"url"`
+	GroupName         string      `json:"group"`
+	Topic             string      `json:"topic"`
+	Partition         int32       `json:"partition"`
+	PartitionConsumer interface{} `json:"partition_consumer"`
+	Arbiter           interface{} `json:"arbiter"`
+	Transporter       interface{} `json:"transporter"`
 }
 
 func findCallbackManagerByGroup(groupName string) *CallbackManager {
