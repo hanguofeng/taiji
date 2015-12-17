@@ -151,6 +151,11 @@ func (pc *PartitionConsumer) GetKafkaPartitionConsumer() sarama.PartitionConsume
 func (pc *PartitionConsumer) GetStat() interface{} {
 	result := make(map[string]interface{})
 	result["from_offset"] = pc.fromOffset
+	if partitionConsumer := pc.manager.GetKafkaPartitionConsumer(); partitionConsumer != nil {
+		result["high_water_mark_offset"] = partitionConsumer.HighWaterMarkOffset()
+	} else {
+		result["high_water_mark_offset"] = -1
+	}
 	result["errors"] = pc.errors
 	result["start_time"] = pc.startTime
 	return result
