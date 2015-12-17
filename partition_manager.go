@@ -99,6 +99,7 @@ func (pm *PartitionManager) Run() error {
 	pm.transporterRunner.RetryTimes = workerNum * 3
 	pm.transporterRunner.Concurrency = workerNum
 	pm.transporterRunner.Prepare()
+	pm.transporter.ResetStat()
 	if _, err := pm.transporterRunner.RunAsync(pm.transporter); err != nil {
 		glog.Errorf("Transporter start failed [err:%v]", err)
 		return err

@@ -15,6 +15,7 @@ type Transporter interface {
 
 	// stat
 	GetStat() interface{}
+	ResetStat()
 }
 
 type WorkerCallback struct {

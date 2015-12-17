@@ -36,10 +36,9 @@ func (nt *NullTransporter) Init(config *CallbackItemConfig, transporterConfig Tr
 	return nil
 }
 
-func (nt *NullTransporter) Prepare() {
+func (nt *NullTransporter) ResetStat() {
 	atomic.StoreUint64(&nt.delivered, 0)
 	nt.startTime = time.Now().Local()
-	nt.ConcurrencyStartStopControl.Prepare()
 }
 
 func (nt *NullTransporter) Run() error {

@@ -78,7 +78,7 @@ func (ht *HTTPTransporter) Init(config *CallbackItemConfig, transporterConfig Tr
 	return nil
 }
 
-func (ht *HTTPTransporter) Prepare() {
+func (ht *HTTPTransporter) ResetStat() {
 	atomic.StoreUint64(&ht.consumed, 0)
 	atomic.StoreUint64(&ht.delivered, 0)
 	atomic.StoreUint64(&ht.skipped, 0)
@@ -86,7 +86,6 @@ func (ht *HTTPTransporter) Prepare() {
 	atomic.StoreUint64(&ht.netFailures, 0)
 	atomic.StoreUint64(&ht.serverFailures, 0)
 	ht.startTime = time.Now().Local()
-	ht.ConcurrencyStartStopControl.Prepare()
 }
 
 func (ht *HTTPTransporter) Run() error {
