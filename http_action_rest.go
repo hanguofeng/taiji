@@ -182,8 +182,9 @@ func init() {
 						res.GroupName = manager.GroupName
 						res.Topic = topic
 						res.Partition = partitionManager.Partition
-
-						// TODO, add PartitionConsumer/Arbiter/Transporter stats
+						res.Arbiter = partitionManager.GetArbiter().GetStat()
+						res.PartitionConsumer = partitionManager.GetPartitionConsumer().GetStat()
+						res.Transporter = partitionManager.GetTransporter().GetStat()
 
 						result = append(result, res)
 					}

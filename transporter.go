@@ -8,9 +8,13 @@ import (
 )
 
 type Transporter interface {
+	// start stop control
 	Init(config *CallbackItemConfig, transporterConfig TransporterConfig, manager *PartitionManager) error
 	Run() error
 	Close() error
+
+	// stat
+	GetStat() interface{}
 }
 
 type WorkerCallback struct {

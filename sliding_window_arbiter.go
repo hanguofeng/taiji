@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/golang/glog"
@@ -31,6 +32,16 @@ type SlidingWindowArbiter struct {
 	config        *CallbackItemConfig
 	arbiterConfig ArbiterConfig
 	windowSize    int
+
+	// sliding window context
+	offsetBase   int64
+	offsetWindow []bool
+
+	// stat variables
+	inflight  uint64
+	uncommit  uint64
+	processed uint64
+	startTime time.Time
 }
 
 func NewSlidingWindowArbiter() Arbiter {
@@ -98,11 +109,14 @@ func (swa *SlidingWindowArbiter) Run() error {
 	swa.messages = make(chan *sarama.ConsumerMessage, swa.windowSize*2)
 	swa.offsets = make(chan int64, swa.windowSize*2)
 	trigger := make(chan struct{}, swa.windowSize*2)
-	offsetBase := int64(-1)
-	offsetWindow := make([]bool, swa.windowSize)
+	swa.offsetBase = int64(-1)
+	swa.offsetWindow = make([]bool, swa.windowSize)
 
-	// counters
-	var inflight, uncommit uint64
+	// reset stat variables
+	atomic.StoreUint64(&swa.inflight, 0)
+	atomic.StoreUint64(&swa.uncommit, 0)
+	atomic.StoreUint64(&swa.processed, 0)
+	swa.startTime = time.Now().Local()
 
 	// cold start
 	for i := 0; i != swa.windowSize; i++ {
@@ -125,39 +139,39 @@ func (swa *SlidingWindowArbiter) Run() error {
 				glog.V(1).Infof("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
 					swa.manager.Topic, swa.manager.Partition, swa.config.Url, offset)
 				if offset >= 0 {
-					offsetWindow[offset-offsetBase] = true
+					swa.offsetWindow[offset-swa.offsetBase] = true
 
 					// decrement inflight, increment uncommit
-					atomic.AddUint64(&inflight, ^uint64(0))
-					atomic.AddUint64(&uncommit, 1)
+					atomic.AddUint64(&swa.inflight, ^uint64(0))
+					atomic.AddUint64(&swa.uncommit, 1)
 
-					if offset == offsetBase {
+					if offset == swa.offsetBase {
 						// rebase
 						advanceCount := 0
 
 						for advanceCount = 0; advanceCount != swa.windowSize; advanceCount++ {
-							if !offsetWindow[advanceCount] {
+							if !swa.offsetWindow[advanceCount] {
 								break
 							}
 						}
 
 						// trigger offset commit
 						swa.manager.GetCallbackManager().GetOffsetManager().CommitOffset(
-							swa.manager.Topic, swa.manager.Partition, offsetBase+int64(advanceCount)-1)
+							swa.manager.Topic, swa.manager.Partition, swa.offsetBase+int64(advanceCount)-1)
 
 						// rebase to idx + offsetBase
 						// TODO, use ring buffer instead of array slicing
-						offsetBase += int64(advanceCount)
+						swa.offsetBase += int64(advanceCount)
 						newOffsetWindow := make([]bool, swa.windowSize)
-						copy(newOffsetWindow, offsetWindow[advanceCount:])
-						offsetWindow = newOffsetWindow
+						copy(newOffsetWindow, swa.offsetWindow[advanceCount:])
+						swa.offsetWindow = newOffsetWindow
 
 						// decrement uncommit
-						atomic.AddUint64(&uncommit, ^uint64(advanceCount-1))
+						atomic.AddUint64(&swa.uncommit, ^uint64(advanceCount-1))
 
 						glog.V(1).Infof("Fast-forward offsetBase [topic:%s][partition:%d][url:%s][originOffsetBase:%d][offsetBase:%d][advance:%d]",
-							swa.manager.Topic, swa.manager.Partition, swa.config.Url, offsetBase-int64(advanceCount),
-							offsetBase, advanceCount)
+							swa.manager.Topic, swa.manager.Partition, swa.config.Url, swa.offsetBase-int64(advanceCount),
+							swa.offsetBase, advanceCount)
 
 						// send advance count trigger
 						for i := 0; i != advanceCount; i++ {
@@ -166,9 +180,9 @@ func (swa *SlidingWindowArbiter) Run() error {
 					}
 
 					glog.V(1).Infof("Current sliding window status [topic:%s][partition:%d][url:%s][offsetBase:%d][inflight:%d][uncommit:%d]",
-						swa.manager.Topic, swa.manager.Partition, swa.config.Url, offsetBase,
-						atomic.LoadUint64(&inflight),
-						atomic.LoadUint64(&uncommit))
+						swa.manager.Topic, swa.manager.Partition, swa.config.Url, swa.offsetBase,
+						atomic.LoadUint64(&swa.inflight),
+						atomic.LoadUint64(&swa.uncommit))
 				}
 			}
 		}
@@ -193,8 +207,8 @@ func (swa *SlidingWindowArbiter) Run() error {
 						message.Topic, message.Partition, swa.config.Url, message.Offset)
 
 					// set base
-					if -1 == offsetBase {
-						offsetBase = message.Offset
+					if -1 == swa.offsetBase {
+						swa.offsetBase = message.Offset
 					}
 
 					// feed message to transporter
@@ -206,7 +220,8 @@ func (swa *SlidingWindowArbiter) Run() error {
 					}
 
 					// increment counter
-					atomic.AddUint64(&inflight, 1)
+					atomic.AddUint64(&swa.inflight, 1)
+					atomic.AddUint64(&swa.processed, 1)
 				}
 			}
 		}
@@ -214,10 +229,18 @@ func (swa *SlidingWindowArbiter) Run() error {
 
 	wg.Wait()
 
-	// trigger transporter exit
-	close(swa.messages)
-
 	return nil
+}
+
+func (swa *SlidingWindowArbiter) GetStat() interface{} {
+	result := make(map[string]interface{})
+	result["inflight"] = atomic.LoadUint64(&swa.inflight)
+	result["uncommit"] = atomic.LoadUint64(&swa.uncommit)
+	result["processed"] = atomic.LoadUint64(&swa.processed)
+	result["window_base"] = swa.offsetBase
+	result["window_size"] = len(swa.offsetWindow)
+	result["start_time"] = swa.startTime
+	return result
 }
 
 func init() {

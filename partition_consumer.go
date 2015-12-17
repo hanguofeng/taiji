@@ -23,6 +23,11 @@ type PartitionConsumer struct {
 
 	// config
 	config *CallbackItemConfig
+
+	// stat variables
+	fromOffset int64
+	errors     uint64
+	startTime  time.Time
 }
 
 func NewPartitionConsumer() *PartitionConsumer {
@@ -48,6 +53,11 @@ func (pc *PartitionConsumer) Run() error {
 
 	// defer is executed reversed to declaration order
 	defer pc.markStop()
+
+	// reset stat variables
+	pc.fromOffset = -1
+	pc.errors = 0
+	pc.startTime = time.Now().Local()
 
 	// claim partition, zk /consumers/CG/owners
 	for maxRetries, tries := 5, 0; tries < maxRetries; tries++ {
@@ -107,6 +117,8 @@ func (pc *PartitionConsumer) Run() error {
 		return err
 	}
 
+	pc.fromOffset = nextOffset
+
 	defer pc.kafkaPartitionConsumer.Close()
 
 	// start stop control
@@ -121,6 +133,7 @@ partitionConsumerLoop:
 		case <-pc.WaitForCloseChannel():
 			break partitionConsumerLoop
 		case err := <-pc.kafkaPartitionConsumer.Errors():
+			pc.errors++
 			glog.Warningf("Received consumer error message [topic:%s][partition:%d][err:%s]",
 				pc.Topic, pc.Partition, err)
 		}
@@ -133,4 +146,12 @@ partitionConsumerLoop:
 
 func (pc *PartitionConsumer) GetKafkaPartitionConsumer() sarama.PartitionConsumer {
 	return pc.kafkaPartitionConsumer
+}
+
+func (pc *PartitionConsumer) GetStat() interface{} {
+	result := make(map[string]interface{})
+	result["from_offset"] = pc.fromOffset
+	result["errors"] = pc.errors
+	result["start_time"] = pc.startTime
+	return result
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/golang/glog"
@@ -21,6 +22,16 @@ type UnboundArbiter struct {
 	// config
 	config        *CallbackItemConfig
 	arbiterConfig ArbiterConfig
+
+	// unbound window context
+	offsetBase   int64
+	offsetWindow []bool
+
+	// stat variables
+	inflight  uint64
+	uncommit  uint64
+	processed uint64
+	startTime time.Time
 }
 
 func NewUnboundArbiter() Arbiter {
@@ -59,11 +70,14 @@ func (ua *UnboundArbiter) Run() error {
 
 	ua.messages = make(chan *sarama.ConsumerMessage, 256)
 	ua.offsets = make(chan int64, 256)
-	offsetBase := int64(-1)
-	offsetWindow := make([]bool, 0, 10)
+	ua.offsetBase = int64(-1)
+	ua.offsetWindow = make([]bool, 0, 10)
 
-	// counters
-	var inflight, uncommit uint64
+	// reset stat variables
+	atomic.StoreUint64(&ua.inflight, 0)
+	atomic.StoreUint64(&ua.uncommit, 0)
+	atomic.StoreUint64(&ua.processed, 0)
+	ua.startTime = time.Now().Local()
 
 	ua.markReady()
 
@@ -83,51 +97,51 @@ func (ua *UnboundArbiter) Run() error {
 					ua.manager.Topic, ua.manager.Partition, ua.config.Url, offset)
 				if offset >= 0 {
 					// extend uncommit offset window
-					if offset-offsetBase >= int64(len(offsetWindow)) {
+					if offset-ua.offsetBase >= int64(len(ua.offsetWindow)) {
 						glog.V(1).Infof("Extend offsetWindow [topic:%s][partition:%d][url:%s][offset:%d][offsetBase:%d][offsetWindowSize:%d]",
-							ua.manager.Topic, ua.manager.Partition, ua.config.Url, offset, offsetBase, len(offsetWindow))
+							ua.manager.Topic, ua.manager.Partition, ua.config.Url, offset, ua.offsetBase, len(ua.offsetWindow))
 						// extend offsetWindow
-						newOffsetWindow := make([]bool, (offset-offsetBase+1)*2)
-						copy(newOffsetWindow, offsetWindow)
-						offsetWindow = newOffsetWindow
+						newOffsetWindow := make([]bool, (offset-ua.offsetBase+1)*2)
+						copy(newOffsetWindow, ua.offsetWindow)
+						ua.offsetWindow = newOffsetWindow
 					}
 
 					// decrement inflight, increment uncommit
-					atomic.AddUint64(&inflight, ^uint64(0))
-					atomic.AddUint64(&uncommit, 1)
+					atomic.AddUint64(&ua.inflight, ^uint64(0))
+					atomic.AddUint64(&ua.uncommit, 1)
 
-					offsetWindow[offset-offsetBase] = true
-					if offset == offsetBase {
+					ua.offsetWindow[offset-ua.offsetBase] = true
+					if offset == ua.offsetBase {
 						// rebase
 						advanceCount := 0
 
-						for advanceCount = 0; advanceCount != len(offsetWindow); advanceCount++ {
-							if !offsetWindow[advanceCount] {
+						for advanceCount = 0; advanceCount != len(ua.offsetWindow); advanceCount++ {
+							if !ua.offsetWindow[advanceCount] {
 								break
 							}
 						}
 
 						// trigger offset commit
 						ua.manager.GetCallbackManager().GetOffsetManager().CommitOffset(
-							ua.manager.Topic, ua.manager.Partition, offsetBase+int64(advanceCount)-1)
+							ua.manager.Topic, ua.manager.Partition, ua.offsetBase+int64(advanceCount)-1)
 
 						// rebase to idx + offsetBase
 						// TODO, use ring buffer instead of array slicing
-						offsetBase += int64(advanceCount)
-						offsetWindow = offsetWindow[advanceCount:]
+						ua.offsetBase += int64(advanceCount)
+						ua.offsetWindow = ua.offsetWindow[advanceCount:]
 
 						// decrement uncommit
-						atomic.AddUint64(&uncommit, ^uint64(advanceCount-1))
+						atomic.AddUint64(&ua.uncommit, ^uint64(advanceCount-1))
 
 						glog.V(1).Infof("Fast-forward offsetBase [topic:%s][partition:%d][url:%s][originOffsetBase:%d][offsetBase:%d][offsetWindowSize:%d][advance:%d]",
-							ua.manager.Topic, ua.manager.Partition, ua.config.Url, offsetBase-int64(advanceCount),
-							offsetBase, len(offsetWindow), advanceCount)
+							ua.manager.Topic, ua.manager.Partition, ua.config.Url, ua.offsetBase-int64(advanceCount),
+							ua.offsetBase, len(ua.offsetWindow), advanceCount)
 					}
 
 					glog.V(1).Infof("Current unbound offset window status [topic:%s][partition:%d][url:%s][offsetBase:%d][inflight:%d][uncommit:%d]",
-						ua.manager.Topic, ua.manager.Partition, ua.config.Url, offsetBase,
-						atomic.LoadUint64(&inflight),
-						atomic.LoadUint64(&uncommit))
+						ua.manager.Topic, ua.manager.Partition, ua.config.Url, ua.offsetBase,
+						atomic.LoadUint64(&ua.inflight),
+						atomic.LoadUint64(&ua.uncommit))
 				}
 			}
 		}
@@ -147,8 +161,8 @@ func (ua *UnboundArbiter) Run() error {
 					message.Topic, message.Partition, ua.config.Url, message.Offset)
 
 				// set base
-				if -1 == offsetBase {
-					offsetBase = message.Offset
+				if -1 == ua.offsetBase {
+					ua.offsetBase = message.Offset
 				}
 
 				// feed message to transporter
@@ -160,17 +174,26 @@ func (ua *UnboundArbiter) Run() error {
 				}
 
 				// increment counter
-				atomic.AddUint64(&inflight, 1)
+				atomic.AddUint64(&ua.inflight, 1)
+				atomic.AddUint64(&ua.processed, 1)
 			}
 		}
 	}()
 
 	wg.Wait()
 
-	// trigger transporter exit
-	close(ua.messages)
-
 	return nil
+}
+
+func (ua *UnboundArbiter) GetStat() interface{} {
+	result := make(map[string]interface{})
+	result["inflight"] = atomic.LoadUint64(&ua.inflight)
+	result["uncommit"] = atomic.LoadUint64(&ua.uncommit)
+	result["processed"] = atomic.LoadUint64(&ua.processed)
+	result["window_base"] = ua.offsetBase
+	result["window_size"] = len(ua.offsetWindow)
+	result["start_time"] = ua.startTime
+	return result
 }
 
 func init() {

@@ -13,6 +13,9 @@ type Arbiter interface {
 	OffsetChannel() chan<- int64
 	MessageChannel() <-chan *sarama.ConsumerMessage
 
+	// stat
+	GetStat() interface{}
+
 	// start stop control
 	Init(config *CallbackItemConfig, arbiterConfig ArbiterConfig, manager *PartitionManager) error
 	Prepare()

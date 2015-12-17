@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -30,6 +31,15 @@ type HTTPTransporter struct {
 
 	// parent
 	manager *PartitionManager
+
+	// stat variables
+	consumed       uint64 // consumed message count
+	delivered      uint64 // success delivered message count
+	skipped        uint64 // skipped message count
+	requests       uint64 // total issued http requests count
+	netFailures    uint64 // net failed http requests
+	serverFailures uint64 // server failed http requests
+	startTime      time.Time
 }
 
 type MessageBody struct {
@@ -68,6 +78,17 @@ func (ht *HTTPTransporter) Init(config *CallbackItemConfig, transporterConfig Tr
 	return nil
 }
 
+func (ht *HTTPTransporter) Prepare() {
+	atomic.StoreUint64(&ht.consumed, 0)
+	atomic.StoreUint64(&ht.delivered, 0)
+	atomic.StoreUint64(&ht.skipped, 0)
+	atomic.StoreUint64(&ht.requests, 0)
+	atomic.StoreUint64(&ht.netFailures, 0)
+	atomic.StoreUint64(&ht.serverFailures, 0)
+	ht.startTime = time.Now().Local()
+	ht.ConcurrencyStartStopControl.Prepare()
+}
+
 func (ht *HTTPTransporter) Run() error {
 	ht.markStart()
 	defer ht.markStop()
@@ -82,7 +103,7 @@ transporterLoop:
 		case message := <-messages:
 			glog.V(1).Infof("Recevied message [topic:%s][partition:%d][url:%s][offset:%d]",
 				message.Topic, message.Partition, ht.Callback.Url, message.Offset)
-
+			atomic.AddUint64(&ht.consumed, 1)
 			ht.processMessage(message, offsets)
 		case <-ht.WaitForCloseChannel():
 			break transporterLoop
@@ -124,6 +145,7 @@ func (ht *HTTPTransporter) processMessage(message *sarama.ConsumerMessage, offse
 		deliveryState := false
 
 		for i := 0; i <= ht.Callback.RetryTimes; i++ {
+			atomic.AddUint64(&ht.requests, 1)
 			deliveryState = ht.delivery(&messageData, message, retried)
 
 			if deliveryState {
@@ -136,9 +158,11 @@ func (ht *HTTPTransporter) processMessage(message *sarama.ConsumerMessage, offse
 
 		if deliveryState {
 			// success
+			atomic.AddUint64(&ht.delivered, 1)
 			break
 		} else if ht.Callback.BypassFailed {
 			// failed
+			atomic.AddUint64(&ht.skipped, 1)
 			glog.Errorf(
 				"Message skipped due to delivery retryTimes exceeded [topic:%s][partition:%d][url:%s][offset:%d][retryTimes:%d][bypassFailed:%t]",
 				message.Topic, message.Partition, ht.Callback.Url, message.Offset, ht.Callback.RetryTimes, ht.Callback.BypassFailed)
@@ -218,17 +242,31 @@ func (ht *HTTPTransporter) delivery(messageData *MessageBody, message *sarama.Co
 				responseBody = []byte{}
 			}
 			// TODO, never let responseBody corrupt my log
+			atomic.AddUint64(&ht.serverFailures, 1)
 			glog.Errorf(
 				"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][responseCode:%d][cost:%.2fms][responseBody:%s']",
 				message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, res.StatusCode, rpcTime, responseBody)
 		}
 	} else {
+		atomic.AddUint64(&ht.netFailures, 1)
 		glog.Errorf(
 			"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][cost:%.2fms][err:%s]",
 			message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, rpcTime, err.Error())
 	}
 
 	return success
+}
+
+func (ht *HTTPTransporter) GetStat() interface{} {
+	result := make(map[string]interface{})
+	result["consumed"] = atomic.LoadUint64(&ht.consumed)
+	result["delivered"] = atomic.LoadUint64(&ht.delivered)
+	result["skipped"] = atomic.LoadUint64(&ht.skipped)
+	result["requests"] = atomic.LoadUint64(&ht.requests)
+	result["net_failure_requests"] = atomic.LoadUint64(&ht.netFailures)
+	result["server_failure_requests"] = atomic.LoadUint64(&ht.serverFailures)
+	result["start_time"] = ht.startTime
+	return result
 }
 
 func init() {

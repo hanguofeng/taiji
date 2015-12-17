@@ -1,6 +1,9 @@
 package main
 
 import (
+	"sync/atomic"
+	"time"
+
 	"github.com/Shopify/sarama"
 	"github.com/golang/glog"
 )
@@ -18,6 +21,10 @@ type NoCommitArbiter struct {
 	// config
 	config        *CallbackItemConfig
 	arbiterConfig ArbiterConfig
+
+	// stat variables
+	processed uint64
+	startTime time.Time
 }
 
 func NewNoCommitArbiter() Arbiter {
@@ -53,6 +60,11 @@ func (nca *NoCommitArbiter) Run() error {
 	defer nca.markStop()
 
 	nca.offsets = make(chan int64, 256)
+
+	// reset stat variables
+	atomic.StoreUint64(&nca.processed, 0)
+	nca.startTime = time.Now().Local()
+
 	nca.markReady()
 
 arbiterLoop:
@@ -64,10 +76,18 @@ arbiterLoop:
 		case offset := <-nca.offsets:
 			glog.V(1).Infof("Read offset from Transporter [topic:%s][partition:%d][url:%s][offset:%d]",
 				nca.manager.Topic, nca.manager.Partition, nca.config.Url, offset)
+			atomic.AddUint64(&nca.processed, 1)
 		}
 	}
 
 	return nil
+}
+
+func (nca *NoCommitArbiter) GetStat() interface{} {
+	result := make(map[string]interface{})
+	result["processed"] = atomic.LoadUint64(&nca.processed)
+	result["start_time"] = nca.startTime
+	return result
 }
 
 func init() {

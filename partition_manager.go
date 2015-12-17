@@ -119,8 +119,16 @@ func (pm *PartitionManager) GetKafkaPartitionConsumer() sarama.PartitionConsumer
 	return pm.partitionConsumer.GetKafkaPartitionConsumer()
 }
 
+func (pm *PartitionManager) GetPartitionConsumer() *PartitionConsumer {
+	return pm.partitionConsumer
+}
+
 func (pm *PartitionManager) GetArbiter() Arbiter {
 	return pm.arbiter
+}
+
+func (pm *PartitionManager) GetTransporter() Transporter {
+	return pm.transporter
 }
 
 func (pm *PartitionManager) GetCallbackManager() *CallbackManager {

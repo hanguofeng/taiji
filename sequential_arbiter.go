@@ -1,6 +1,9 @@
 package main
 
 import (
+	"sync/atomic"
+	"time"
+
 	"github.com/Shopify/sarama"
 	"github.com/golang/glog"
 )
@@ -18,6 +21,10 @@ type SequentialArbiter struct {
 	// config
 	config        *CallbackItemConfig
 	arbiterConfig ArbiterConfig
+
+	// stat variables
+	processed uint64
+	startTime time.Time
 }
 
 func NewSequentialArbiter() Arbiter {
@@ -51,6 +58,11 @@ func (sa *SequentialArbiter) Run() error {
 		return err
 	}
 	defer sa.markStop()
+
+	// reset stat variables
+	atomic.StoreUint64(&sa.processed, 0)
+	sa.startTime = time.Now().Local()
+
 	consumer := sa.manager.GetKafkaPartitionConsumer()
 
 	// buffer only one message
@@ -91,13 +103,20 @@ arbiterLoop:
 					break arbiterLoop
 				case sa.messages <- message:
 				}
+
+				atomic.AddUint64(&sa.processed, 1)
 			}
 		}
 	}
 
-	close(sa.messages)
-
 	return nil
+}
+
+func (sa *SequentialArbiter) GetStat() interface{} {
+	result := make(map[string]interface{})
+	result["processed"] = atomic.LoadUint64(&sa.processed)
+	result["start_time"] = sa.startTime
+	return result
 }
 
 func init() {
