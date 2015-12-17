@@ -143,6 +143,7 @@ tickerLoop:
 					}
 				}
 			}
+			zom.lastCommittedTime = time.Now()
 			zom.l.Unlock()
 		}
 	}
@@ -157,6 +158,18 @@ tickerLoop:
 	zom.l.Unlock()
 
 	return nil
+}
+
+func (zom *ZookeeperOffsetStorage) GetStat() interface{} {
+	zom.l.RLock()
+	defer zom.l.RUnlock()
+
+	result := make(map[string]interface{})
+	result["offsets"] = stringKeyOffsetMap(zom.offsets)
+	result["committed_offsets"] = stringKeyOffsetMap(zom.lastCommittedOffsets)
+	result["committed_time"] = zom.lastCommittedTime.Local()
+
+	return result
 }
 
 func init() {

@@ -7,13 +7,19 @@ import (
 )
 
 type OffsetStorage interface {
+	// start stop control
 	Init(config OffsetStorageConfig, manager *CallbackManager) error
+	Run() error
+	Close() error
+
+	// offset management
 	InitializePartition(topic string, partition int32) (int64, error)
 	ReadOffset(topic string, partition int32) (int64, error)
 	WriteOffset(topic string, partition int32, offset int64) error
 	FinalizePartition(topic string, partition int32) error
-	Run() error
-	Close() error
+
+	// stat
+	GetStat() interface{}
 }
 
 type OffsetStorageCreator func() OffsetStorage

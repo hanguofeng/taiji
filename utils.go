@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 
 	"github.com/golang/glog"
 	"github.com/wvanbergen/kazoo-go"
@@ -17,6 +18,38 @@ func getGroupName(url string) string {
 	m.Write([]byte(url))
 	s := hex.EncodeToString(m.Sum(nil))
 	return s
+}
+
+func copyOffsetMap(offsetMap OffsetMap) OffsetMap {
+	result := make(OffsetMap)
+
+	for topic, partitionOffsets := range offsetMap {
+		resultOffsets := make(map[int32]int64)
+
+		for partition, offset := range partitionOffsets {
+			resultOffsets[partition] = offset
+		}
+
+		result[topic] = resultOffsets
+	}
+
+	return result
+}
+
+func stringKeyOffsetMap(offsetMap OffsetMap) map[string]map[string]int64 {
+	result := make(map[string]map[string]int64)
+
+	for topic, partitionOffsets := range offsetMap {
+		resultOffsets := make(map[string]int64)
+
+		for partition, offset := range partitionOffsets {
+			resultOffsets[strconv.FormatInt(int64(partition), 10)] = offset
+		}
+
+		result[topic] = resultOffsets
+	}
+
+	return result
 }
 
 func jsonify(w http.ResponseWriter, r *http.Request, data interface{}, code int) {

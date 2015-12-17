@@ -125,19 +125,7 @@ func (om *OffsetManager) GetOffsets() OffsetMap {
 	om.l.RLock()
 	defer om.l.RUnlock()
 
-	result := make(OffsetMap)
-
-	for topic, partitionOffsets := range om.lastCommitted {
-		resultOffsets := make(map[int32]int64)
-
-		for partition, offset := range partitionOffsets {
-			resultOffsets[partition] = offset
-		}
-
-		result[topic] = resultOffsets
-	}
-
-	return result
+	return copyOffsetMap(om.lastCommitted)
 }
 
 func (om *OffsetManager) CommitOffset(topic string, partition int32, offset int64) error {
@@ -200,4 +188,12 @@ func (om *OffsetManager) Run() error {
 	}
 
 	return nil
+}
+
+func (om *OffsetManager) GetMasterOffsetStorage() OffsetStorage {
+	return om.offsetStorage
+}
+
+func (om *OffsetManager) GetSlaveOffsetStorage() map[string]OffsetStorage {
+	return om.slaveOffsetStorage
 }

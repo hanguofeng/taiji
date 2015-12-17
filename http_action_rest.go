@@ -31,6 +31,11 @@ type partitionManagerData struct {
 	Transporter       interface{} `json:"transporter"`
 }
 
+type offsetStorageData struct {
+	Master interface{}            `json:"master"`
+	Slaves map[string]interface{} `json:"slaves"`
+}
+
 func findCallbackManagerByGroup(groupName string) *CallbackManager {
 	if groupName == "" {
 		return nil
@@ -226,16 +231,7 @@ func init() {
 
 		if manager := findCallbackManagerByGroup(muxVars["group"]); manager != nil {
 			code := 0
-
-			rawOffsets := manager.GetOffsetManager().GetOffsets()
-			// convert OffsetMap keys to string
-			offsets := make(map[string]map[string]int64)
-			for topic, partitionOffsets := range rawOffsets {
-				offsets[topic] = make(map[string]int64)
-				for partition, offset := range partitionOffsets {
-					offsets[topic][strconv.FormatInt(int64(partition), 10)] = offset
-				}
-			}
+			offsets := stringKeyOffsetMap(manager.GetOffsetManager().GetOffsets())
 
 			jsonify(w, r, offsets, code)
 			return
@@ -249,9 +245,17 @@ func init() {
 		muxVars := mux.Vars(r)
 
 		if manager := findCallbackManagerByGroup(muxVars["group"]); manager != nil {
-			// TODO, add offset storage stats
+			var res offsetStorageData
+
+			res.Master = manager.GetOffsetManager().GetMasterOffsetStorage().GetStat()
+			res.Slaves = make(map[string]interface{})
+
+			for name, offsetStorage := range manager.GetOffsetManager().GetSlaveOffsetStorage() {
+				res.Slaves[name] = offsetStorage.GetStat()
+			}
+
 			code := 0
-			jsonify(w, r, nil, code)
+			jsonify(w, r, res, code)
 			return
 		}
 
