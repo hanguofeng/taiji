@@ -164,7 +164,7 @@ func init() {
 
 			switch muxVars["topic"] {
 			case "*", "":
-				// get first topic
+				// get all topics
 				topics = manager.Topics
 			default:
 				topics = append(topics, muxVars["topic"])
@@ -176,17 +176,39 @@ func init() {
 			for _, topic := range topics {
 				if partitionManagers := findPartitionManagerByTopic(manager, topic); len(partitionManagers) > 0 {
 					// found partitionManager matches this topic
-					for _, partitionManager := range partitionManagers {
-						var res partitionManagerData
-						res.Url = manager.Url
-						res.GroupName = manager.GroupName
-						res.Topic = topic
-						res.Partition = partitionManager.Partition
-						res.Arbiter = partitionManager.GetArbiter().GetStat()
-						res.PartitionConsumer = partitionManager.GetPartitionConsumer().GetStat()
-						res.Transporter = partitionManager.GetTransporter().GetStat()
 
-						result = append(result, res)
+					// find partitions matches our need
+					applyFilter := false
+					switch muxVars["partition"] {
+					case "*", "":
+						// get all partitions
+						applyFilter = false
+					default:
+						applyFilter = true
+					}
+
+					var partitionFilter int32
+
+					if applyFilter {
+						if partition, err := strconv.ParseInt(muxVars["partition"], 10, 32 /* partition in int32 */); err != nil {
+							applyFilter = false
+						} else {
+							partitionFilter = int32(partition)
+						}
+					}
+					for _, partitionManager := range partitionManagers {
+						if !applyFilter || partitionManager.Partition == partitionFilter {
+							var res partitionManagerData
+							res.Url = manager.Url
+							res.GroupName = manager.GroupName
+							res.Topic = topic
+							res.Partition = partitionManager.Partition
+							res.Arbiter = partitionManager.GetArbiter().GetStat()
+							res.PartitionConsumer = partitionManager.GetPartitionConsumer().GetStat()
+							res.Transporter = partitionManager.GetTransporter().GetStat()
+
+							result = append(result, res)
+						}
 					}
 				}
 			}
