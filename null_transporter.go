@@ -3,7 +3,7 @@ package main
 import "github.com/golang/glog"
 
 type NullTransporter struct {
-	*StartStopControl
+	*ConcurrencyStartStopControl
 
 	// config
 	config            *CallbackItemConfig
@@ -15,7 +15,7 @@ type NullTransporter struct {
 
 func NewNullTransporter() Transporter {
 	return &NullTransporter{
-		StartStopControl: &StartStopControl{},
+		ConcurrencyStartStopControl: &ConcurrencyStartStopControl{},
 	}
 }
 
@@ -28,6 +28,9 @@ func (nt *NullTransporter) Init(config *CallbackItemConfig, transporterConfig Tr
 }
 
 func (nt *NullTransporter) Run() error {
+	nt.markStart()
+	defer nt.markStop()
+
 	arbiter := nt.manager.GetArbiter()
 	messages := arbiter.MessageChannel()
 	offsets := arbiter.OffsetChannel()

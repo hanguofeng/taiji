@@ -15,7 +15,7 @@ import (
 const HTTP_FORM_ENCODING = "application/x-www-form-urlencoded"
 
 type HTTPTransporter struct {
-	*StartStopControl
+	*ConcurrencyStartStopControl
 	Callback    *WorkerCallback
 	Serializer  string
 	ContentType string
@@ -43,7 +43,7 @@ type MessageBody struct {
 
 func NewHTTPTransporter() Transporter {
 	return &HTTPTransporter{
-		StartStopControl: &StartStopControl{},
+		ConcurrencyStartStopControl: &ConcurrencyStartStopControl{},
 	}
 }
 
@@ -69,6 +69,9 @@ func (ht *HTTPTransporter) Init(config *CallbackItemConfig, transporterConfig Tr
 }
 
 func (ht *HTTPTransporter) Run() error {
+	ht.markStart()
+	defer ht.markStop()
+
 	arbiter := ht.manager.GetArbiter()
 	messages := arbiter.MessageChannel()
 	offsets := arbiter.OffsetChannel()
