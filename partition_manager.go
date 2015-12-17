@@ -23,8 +23,8 @@ type PartitionManager struct {
 	arbiter Arbiter
 
 	// transporter
-	transporter       []Transporter
-	transporterRunner *ServiceRunner
+	transporter       Transporter
+	transporterRunner *ConcurrencyRunner
 }
 
 func NewPartitionManager() *PartitionManager {
@@ -57,7 +57,13 @@ func (pm *PartitionManager) Init(config *CallbackItemConfig, topic string, parti
 	}
 
 	// init transporter
-	pm.transporterRunner = NewServiceRunner()
+	pm.transporterRunner = NewConcurrencyRunner()
+	if pm.transporter, err = NewTransporter(pm.config.TransporterName); err != nil {
+		return err
+	}
+	if err = pm.transporter.Init(config, config.TransporterConfig, pm); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -88,20 +94,10 @@ func (pm *PartitionManager) Run() error {
 	}
 
 	// start transporter group
-	pm.transporter = make([]Transporter, 0)
 	// TODO, dynamic create worker using this.config.WorkerNum and arbiter judgement
 	workerNum := pm.arbiter.PreferredTransporterWorkerNum(pm.config.WorkerNum)
-	for i := 0; i != workerNum; i++ {
-		if transporter, err := NewTransporter(pm.config.TransporterName); err == nil {
-			if err := transporter.Init(pm.config, pm.config.TransporterConfig, pm); err != nil {
-				return err
-			}
-			pm.transporter = append(pm.transporter, transporter)
-		} else {
-			return err
-		}
-	}
-	pm.transporterRunner.RetryTimes = len(pm.transporter) * 3
+	pm.transporterRunner.RetryTimes = workerNum * 3
+	pm.transporterRunner.Concurrency = workerNum
 	pm.transporterRunner.Prepare()
 	if _, err := pm.transporterRunner.RunAsync(pm.transporter); err != nil {
 		glog.Errorf("Transporter start failed [err:%v]", err)
