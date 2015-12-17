@@ -15,6 +15,7 @@ import (
 const HTTP_FORM_ENCODING = "application/x-www-form-urlencoded"
 
 type HTTPTransporter struct {
+	*StartStopControl
 	Callback    *WorkerCallback
 	Serializer  string
 	ContentType string
@@ -41,7 +42,9 @@ type MessageBody struct {
 }
 
 func NewHTTPTransporter() Transporter {
-	return &HTTPTransporter{}
+	return &HTTPTransporter{
+		StartStopControl: &StartStopControl{},
+	}
 }
 
 func (ht *HTTPTransporter) Init(config *CallbackItemConfig, transporterConfig TransporterConfig, manager *PartitionManager) error {
@@ -70,88 +73,18 @@ func (ht *HTTPTransporter) Run() error {
 	messages := arbiter.MessageChannel()
 	offsets := arbiter.OffsetChannel()
 
-	for message := range messages {
-		glog.V(1).Infof("Recevied message [topic:%s][partition:%d][url:%s][offset:%d]",
-			message.Topic, message.Partition, ht.Callback.Url, message.Offset)
+transporterLoop:
+	for {
+		select {
+		case message := <-messages:
+			glog.V(1).Infof("Recevied message [topic:%s][partition:%d][url:%s][offset:%d]",
+				message.Topic, message.Partition, ht.Callback.Url, message.Offset)
 
-		var messageData MessageBody
-
-		// deserialize message
-		switch ht.Serializer {
-		case "", "raw":
-			messageData.Data = string(message.Value)
-		case "json":
-			fallthrough
-		default:
-			json.Unmarshal(message.Value, &messageData)
-			// ignore message json decode failure
+			ht.processMessage(message, offsets)
+		case <-ht.WaitForCloseChannel():
+			break transporterLoop
 		}
 
-		// delivery Content-Type
-		if "" != ht.ContentType {
-			messageData.ContentType = ht.ContentType
-		} else if "" == ht.ContentType {
-			ht.ContentType = HTTP_FORM_ENCODING
-		}
-
-		rpcStartTime := time.Now()
-
-		retried := 0
-
-		for {
-			deliveryState := false
-
-			for i := 0; i <= ht.Callback.RetryTimes; i++ {
-				deliveryState = ht.delivery(&messageData, message, retried)
-
-				if deliveryState {
-					// success
-					break
-				}
-
-				retried++
-			}
-
-			if deliveryState {
-				// success
-				break
-			} else if ht.Callback.BypassFailed {
-				// failed
-				glog.Errorf(
-					"Message skipped due to delivery retryTimes exceeded [topic:%s][partition:%d][url:%s][offset:%d][retryTimes:%d][bypassFailed:%t]",
-					message.Topic, message.Partition, ht.Callback.Url, message.Offset, ht.Callback.RetryTimes, ht.Callback.BypassFailed)
-				break
-			}
-
-			glog.Errorf(
-				"Retry delivery after %s due to delivery retryTime exceeded [topic:%s][partition:%d][url:%s][offset:%d][retryTimes:%d][bypassFailed:%t][failedSleep:%.2fms]",
-				ht.Callback.FailedSleep.String(), message.Topic, message.Partition, ht.Callback.Url, message.Offset, ht.Callback.RetryTimes, ht.Callback.BypassFailed,
-				ht.Callback.FailedSleep.Seconds()*1000)
-
-			// wait for FailedSleep times for another retry round
-			time.Sleep(ht.Callback.FailedSleep)
-		}
-
-		rpcStopTime := time.Now()
-
-		// total time from proxy to pusher complete sending
-		totalTime := float64(-1)
-		if ht.Serializer == "json" {
-			totalTime = float64(rpcStopTime.UnixNano()/1000000 - messageData.TimeStamp)
-		}
-
-		glog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d][cost:%.2fms][totalCost:%.2fms][retried:%d]",
-			message.Topic, message.Partition, ht.Callback.Url, message.Offset,
-			rpcStopTime.Sub(rpcStartTime).Seconds()*1000,
-			totalTime, retried)
-
-		glog.V(1).Infof("HTTP Transporter commit message to arbiter [topic:%s][partition:%d][url:%s][offset:%d]",
-			message.Topic, message.Partition, ht.Callback.Url, message.Offset)
-
-		offsets <- message.Offset
-
-		glog.V(1).Infof("HTTP Transporter processed message [topic:%s][partition:%d][url:%s][offset:%d]",
-			message.Topic, message.Partition, ht.Callback.Url, message.Offset)
 	}
 
 	glog.V(1).Infof("HTTPTransporter exited [topic:%s][partition:%d][url:%s]", ht.manager.Topic, ht.manager.Partition, ht.Callback.Url)
@@ -159,9 +92,85 @@ func (ht *HTTPTransporter) Run() error {
 	return nil
 }
 
-func (ht *HTTPTransporter) Close() error {
-	// dummy
-	return nil
+func (ht *HTTPTransporter) processMessage(message *sarama.ConsumerMessage, offsets chan<- int64) {
+	var messageData MessageBody
+
+	// deserialize message
+	switch ht.Serializer {
+	case "", "raw":
+		messageData.Data = string(message.Value)
+	case "json":
+		fallthrough
+	default:
+		json.Unmarshal(message.Value, &messageData)
+		// ignore message json decode failure
+	}
+
+	// delivery Content-Type
+	if "" != ht.ContentType {
+		messageData.ContentType = ht.ContentType
+	} else if "" == ht.ContentType {
+		ht.ContentType = HTTP_FORM_ENCODING
+	}
+
+	rpcStartTime := time.Now()
+
+	retried := 0
+
+	for {
+		deliveryState := false
+
+		for i := 0; i <= ht.Callback.RetryTimes; i++ {
+			deliveryState = ht.delivery(&messageData, message, retried)
+
+			if deliveryState {
+				// success
+				break
+			}
+
+			retried++
+		}
+
+		if deliveryState {
+			// success
+			break
+		} else if ht.Callback.BypassFailed {
+			// failed
+			glog.Errorf(
+				"Message skipped due to delivery retryTimes exceeded [topic:%s][partition:%d][url:%s][offset:%d][retryTimes:%d][bypassFailed:%t]",
+				message.Topic, message.Partition, ht.Callback.Url, message.Offset, ht.Callback.RetryTimes, ht.Callback.BypassFailed)
+			break
+		}
+
+		glog.Errorf(
+			"Retry delivery after %s due to delivery retryTime exceeded [topic:%s][partition:%d][url:%s][offset:%d][retryTimes:%d][bypassFailed:%t][failedSleep:%.2fms]",
+			ht.Callback.FailedSleep.String(), message.Topic, message.Partition, ht.Callback.Url, message.Offset, ht.Callback.RetryTimes, ht.Callback.BypassFailed,
+			ht.Callback.FailedSleep.Seconds()*1000)
+
+		// wait for FailedSleep times for another retry round
+		time.Sleep(ht.Callback.FailedSleep)
+	}
+
+	rpcStopTime := time.Now()
+
+	// total time from proxy to pusher complete sending
+	totalTime := float64(-1)
+	if ht.Serializer == "json" {
+		totalTime = float64(rpcStopTime.UnixNano()/1000000 - messageData.TimeStamp)
+	}
+
+	glog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d][cost:%.2fms][totalCost:%.2fms][retried:%d][payloadLength:%d]",
+		message.Topic, message.Partition, ht.Callback.Url, message.Offset,
+		rpcStopTime.Sub(rpcStartTime).Seconds()*1000,
+		totalTime, retried, len(messageData.Data))
+
+	glog.V(1).Infof("HTTP Transporter commit message to arbiter [topic:%s][partition:%d][url:%s][offset:%d]",
+		message.Topic, message.Partition, ht.Callback.Url, message.Offset)
+
+	offsets <- message.Offset
+
+	glog.V(1).Infof("HTTP Transporter processed message [topic:%s][partition:%d][url:%s][offset:%d]",
+		message.Topic, message.Partition, ht.Callback.Url, message.Offset)
 }
 
 func (ht *HTTPTransporter) delivery(messageData *MessageBody, message *sarama.ConsumerMessage, retryTime int) bool {

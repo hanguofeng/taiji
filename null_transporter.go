@@ -3,6 +3,8 @@ package main
 import "github.com/golang/glog"
 
 type NullTransporter struct {
+	*StartStopControl
+
 	// config
 	config            *CallbackItemConfig
 	transporterConfig TransporterConfig
@@ -12,7 +14,9 @@ type NullTransporter struct {
 }
 
 func NewNullTransporter() Transporter {
-	return &NullTransporter{}
+	return &NullTransporter{
+		StartStopControl: &StartStopControl{},
+	}
 }
 
 func (nt *NullTransporter) Init(config *CallbackItemConfig, transporterConfig TransporterConfig, manager *PartitionManager) error {
@@ -28,17 +32,19 @@ func (nt *NullTransporter) Run() error {
 	messages := arbiter.MessageChannel()
 	offsets := arbiter.OffsetChannel()
 
-	for message := range messages {
-		glog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d]",
-			message.Topic, message.Partition, nt.config.Url, message.Offset)
-		offsets <- message.Offset
+transporterLoop:
+	for {
+		select {
+		case message := <-messages:
+			glog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d]",
+				message.Topic, message.Partition, nt.config.Url, message.Offset)
+			offsets <- message.Offset
+		case <-nt.WaitForCloseChannel():
+			break transporterLoop
+		}
+
 	}
 
-	return nil
-}
-
-func (nt *NullTransporter) Close() error {
-	// dummy
 	return nil
 }
 
