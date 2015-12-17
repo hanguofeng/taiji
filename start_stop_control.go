@@ -33,6 +33,10 @@ type StartStopControl struct {
 	triggerLock sync.Mutex
 }
 
+func NewStartStopControl() *StartStopControl {
+	return &StartStopControl{}
+}
+
 func (ssc *StartStopControl) getState() State {
 	ssc.stateLock.RLock()
 	defer ssc.stateLock.RUnlock()

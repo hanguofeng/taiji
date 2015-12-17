@@ -36,7 +36,7 @@ type ZookeeperOffsetStorage struct {
 
 func NewZookeeperOffsetStorage() OffsetStorage {
 	return &ZookeeperOffsetStorage{
-		StartStopControl: &StartStopControl{},
+		StartStopControl: NewStartStopControl(),
 	}
 }
 

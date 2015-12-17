@@ -34,7 +34,7 @@ type OffsetManager struct {
 
 func NewOffsetManager() *OffsetManager {
 	return &OffsetManager{
-		StartStopControl: &StartStopControl{},
+		StartStopControl: NewStartStopControl(),
 	}
 }
 

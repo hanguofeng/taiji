@@ -15,7 +15,7 @@ type NullTransporter struct {
 
 func NewNullTransporter() Transporter {
 	return &NullTransporter{
-		ConcurrencyStartStopControl: &ConcurrencyStartStopControl{},
+		ConcurrencyStartStopControl: NewConcurrencyStartStopControl(),
 	}
 }
 

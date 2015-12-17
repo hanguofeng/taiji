@@ -35,7 +35,7 @@ type SlidingWindowArbiter struct {
 
 func NewSlidingWindowArbiter() Arbiter {
 	return &SlidingWindowArbiter{
-		StartStopControl: &StartStopControl{},
+		StartStopControl: NewStartStopControl(),
 	}
 }
 

@@ -18,7 +18,7 @@ type ServiceRunner struct {
 
 func NewServiceRunner() *ServiceRunner {
 	return &ServiceRunner{
-		StartStopControl: &StartStopControl{},
+		StartStopControl: NewStartStopControl(),
 	}
 }
 

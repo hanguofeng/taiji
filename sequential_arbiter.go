@@ -22,7 +22,7 @@ type SequentialArbiter struct {
 
 func NewSequentialArbiter() Arbiter {
 	return &SequentialArbiter{
-		StartStopControl: &StartStopControl{},
+		StartStopControl: NewStartStopControl(),
 	}
 }
 

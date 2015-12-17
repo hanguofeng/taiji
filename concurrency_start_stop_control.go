@@ -8,6 +8,12 @@ type ConcurrencyStartStopControl struct {
 	instanceLock  sync.Mutex
 }
 
+func NewConcurrencyStartStopControl() *ConcurrencyStartStopControl {
+	return &ConcurrencyStartStopControl{
+		StartStopControl: NewStartStopControl(),
+	}
+}
+
 func (cssc *ConcurrencyStartStopControl) markStart() {
 	cssc.instanceLock.Lock()
 	defer cssc.instanceLock.Unlock()

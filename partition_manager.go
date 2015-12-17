@@ -29,7 +29,7 @@ type PartitionManager struct {
 
 func NewPartitionManager() *PartitionManager {
 	return &PartitionManager{
-		StartStopControl: &StartStopControl{},
+		StartStopControl: NewStartStopControl(),
 	}
 }
 

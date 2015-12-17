@@ -12,7 +12,7 @@ func TestStartStopControlBlockOnWaitForClose(t *testing.T) {
 		*StartStopControl
 	}
 
-	waitForCloseTest := &BlockOnWaitForCloseTest{StartStopControl: &StartStopControl{}}
+	waitForCloseTest := &BlockOnWaitForCloseTest{StartStopControl: NewStartStopControl()}
 
 	waitForCloseTest.Prepare()
 

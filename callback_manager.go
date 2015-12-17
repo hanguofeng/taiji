@@ -45,7 +45,7 @@ type CallbackManager struct {
 
 func NewCallbackManager() *CallbackManager {
 	return &CallbackManager{
-		StartStopControl: &StartStopControl{},
+		StartStopControl: NewStartStopControl(),
 	}
 }
 

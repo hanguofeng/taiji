@@ -25,7 +25,7 @@ type UnboundArbiter struct {
 
 func NewUnboundArbiter() Arbiter {
 	return &UnboundArbiter{
-		StartStopControl: &StartStopControl{},
+		StartStopControl: NewStartStopControl(),
 	}
 }
 

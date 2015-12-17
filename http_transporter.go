@@ -43,7 +43,7 @@ type MessageBody struct {
 
 func NewHTTPTransporter() Transporter {
 	return &HTTPTransporter{
-		ConcurrencyStartStopControl: &ConcurrencyStartStopControl{},
+		ConcurrencyStartStopControl: NewConcurrencyStartStopControl(),
 	}
 }
 

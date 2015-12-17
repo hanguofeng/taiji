@@ -22,7 +22,7 @@ type NoCommitArbiter struct {
 
 func NewNoCommitArbiter() Arbiter {
 	return &NoCommitArbiter{
-		StartStopControl: &StartStopControl{},
+		StartStopControl: NewStartStopControl(),
 	}
 }
 

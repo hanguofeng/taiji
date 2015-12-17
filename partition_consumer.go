@@ -27,7 +27,7 @@ type PartitionConsumer struct {
 
 func NewPartitionConsumer() *PartitionConsumer {
 	return &PartitionConsumer{
-		StartStopControl: &StartStopControl{},
+		StartStopControl: NewStartStopControl(),
 	}
 }
 
