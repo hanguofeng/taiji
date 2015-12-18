@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -50,10 +51,18 @@ func stringKeyOffsetMap(offsetMap OffsetMap) map[string]map[string]int64 {
 	return result
 }
 
-func jsonify(w http.ResponseWriter, r *http.Request, data interface{}, code int) {
+func jsonify(w http.ResponseWriter, r *http.Request, data interface{}, code int, args ...interface{}) {
+	var msg string
+
+	if len(args) > 0 {
+		msg = fmt.Sprint(args...)
+	} else {
+		msg = "success"
+	}
+
 	res := map[string]interface{}{
 		"errno":  code,
-		"errmsg": "success",
+		"errmsg": msg,
 		"data":   data,
 	}
 
