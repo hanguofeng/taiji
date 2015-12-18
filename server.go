@@ -9,8 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Shopify/sarama"
 	"github.com/golang/glog"
 	"github.com/gorilla/mux"
+	"github.com/samuel/go-zookeeper/zk"
 )
 
 type Server struct {
@@ -63,10 +65,10 @@ func (s *Server) Init(configFileName string) error {
 	}
 
 	// init sarama logger
-	// sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
+	sarama.Logger = NewLibraryLogger(2, "[Sarama] ")
 
-	// init kazoo logger
-	// kazoo.Logger
+	// init zookeeper logger
+	zk.DefaultLogger = NewLibraryLogger(2, "[Zookeeper] ")
 
 	// init http transport
 	s.httpTransport = &http.Transport{
