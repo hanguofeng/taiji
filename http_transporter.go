@@ -40,6 +40,12 @@ type HTTPTransporter struct {
 	netFailures    uint64 // net failed http requests
 	serverFailures uint64 // server failed http requests
 	startTime      time.Time
+
+	// stat tracker variables, previously /stat/tracker interface required variable
+	lastRecordTimestamp    int64
+	currentRecordTimestamp int64
+	lastLogId              string
+	lastOffset             int64
 }
 
 type MessageBody struct {
@@ -79,6 +85,7 @@ func (ht *HTTPTransporter) Init(config *CallbackItemConfig, transporterConfig Tr
 }
 
 func (ht *HTTPTransporter) ResetStat() {
+	// stat variable
 	atomic.StoreUint64(&ht.consumed, 0)
 	atomic.StoreUint64(&ht.delivered, 0)
 	atomic.StoreUint64(&ht.skipped, 0)
@@ -86,6 +93,12 @@ func (ht *HTTPTransporter) ResetStat() {
 	atomic.StoreUint64(&ht.netFailures, 0)
 	atomic.StoreUint64(&ht.serverFailures, 0)
 	ht.startTime = time.Now().Local()
+
+	// stat tracker variable
+	ht.lastRecordTimestamp = -1
+	ht.currentRecordTimestamp = -1
+	ht.lastLogId = ""
+	ht.lastOffset = -1
 }
 
 func (ht *HTTPTransporter) Run() error {
@@ -137,17 +150,15 @@ func (ht *HTTPTransporter) processMessage(message *sarama.ConsumerMessage, offse
 	}
 
 	rpcStartTime := time.Now()
-
 	retried := 0
+	deliverySuccess := false
 
 	for {
-		deliveryState := false
-
 		for i := 0; i <= ht.Callback.RetryTimes; i++ {
 			atomic.AddUint64(&ht.requests, 1)
-			deliveryState = ht.delivery(&messageData, message, retried)
+			deliverySuccess = ht.delivery(&messageData, message, retried)
 
-			if deliveryState {
+			if deliverySuccess {
 				// success
 				break
 			}
@@ -155,7 +166,7 @@ func (ht *HTTPTransporter) processMessage(message *sarama.ConsumerMessage, offse
 			retried++
 		}
 
-		if deliveryState {
+		if deliverySuccess {
 			// success
 			atomic.AddUint64(&ht.delivered, 1)
 			break
@@ -183,10 +194,17 @@ func (ht *HTTPTransporter) processMessage(message *sarama.ConsumerMessage, offse
 	totalTime := float64(-1)
 	if ht.Serializer == "json" {
 		totalTime = float64(rpcStopTime.UnixNano()/1000000 - messageData.TimeStamp)
+
+		// record tracker status if success
+		if deliverySuccess && messageData.TimeStamp > ht.currentRecordTimestamp {
+			ht.lastRecordTimestamp, ht.currentRecordTimestamp = ht.currentRecordTimestamp, messageData.TimeStamp
+			ht.lastLogId = messageData.LogId
+			ht.lastOffset = message.Offset
+		}
 	}
 
-	glog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d][cost:%.2fms][totalCost:%.2fms][retried:%d][payloadLength:%d]",
-		message.Topic, message.Partition, ht.Callback.Url, message.Offset,
+	glog.Infof("Committed message [topic:%s][partition:%d][url:%s][offset:%d][skipped:%t][cost:%.2fms][totalCost:%.2fms][retried:%d][payloadLength:%d]",
+		message.Topic, message.Partition, ht.Callback.Url, message.Offset, !deliverySuccess,
 		rpcStopTime.Sub(rpcStartTime).Seconds()*1000,
 		totalTime, retried, len(messageData.Data))
 
@@ -258,6 +276,8 @@ func (ht *HTTPTransporter) delivery(messageData *MessageBody, message *sarama.Co
 
 func (ht *HTTPTransporter) GetStat() interface{} {
 	result := make(map[string]interface{})
+
+	// stat
 	result["consumed"] = atomic.LoadUint64(&ht.consumed)
 	result["delivered"] = atomic.LoadUint64(&ht.delivered)
 	result["skipped"] = atomic.LoadUint64(&ht.skipped)
@@ -265,6 +285,13 @@ func (ht *HTTPTransporter) GetStat() interface{} {
 	result["net_failure_requests"] = atomic.LoadUint64(&ht.netFailures)
 	result["server_failure_requests"] = atomic.LoadUint64(&ht.serverFailures)
 	result["start_time"] = ht.startTime
+
+	// stat tracker
+	result["last_record_op_time"] = ht.lastRecordTimestamp
+	result["current_record_op_time"] = ht.currentRecordTimestamp
+	result["last_logid"] = ht.lastLogId
+	result["last_offset"] = ht.lastOffset
+
 	return result
 }
 

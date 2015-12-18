@@ -189,6 +189,10 @@ func (cm *CallbackManager) GetKafkaConsumer() sarama.Consumer {
 	return cm.kafkaConsumer
 }
 
+func (cm *CallbackManager) GetConfig() *CallbackItemConfig {
+	return cm.config
+}
+
 func (cm *CallbackManager) connectZookeeper() error {
 	var err error
 
