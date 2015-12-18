@@ -156,7 +156,6 @@ func TestLoadConfigFile(t *testing.T) {
 	t.Logf("Config file parse result: %#v", config)
 
 	// check config parse result
-	assert.Equal(t, "test.log", config.LogFile, "LogFile not correct")
 	assert.Equal(t, 10, config.ConnectionPoolSize, "ConnectionPoolSize not correct")
 	assert.Equal(t, 8080, config.StatServerPort, "StatServerPort not correct")
 	assert.Len(t, config.Callbacks, 1, "CallbackItemConfig count not correct")

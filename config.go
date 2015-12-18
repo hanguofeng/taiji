@@ -63,7 +63,6 @@ type CallbackItemConfig struct {
 }
 
 type ServiceConfig struct {
-	LogFile            string               `json:"log_file"`
 	Callbacks          []CallbackItemConfig `json:"consumer_groups"`
 	ConnectionPoolSize int                  `json:"connection_pool_size"`
 	StatServerPort     int                  `json:"stat_server_port"`
@@ -89,7 +88,7 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 	}
 
 	if c.StatServerPort != 0 && (c.StatServerPort < CFG_MIN_STAT_SERVER_PORT || c.StatServerPort >= CFG_MAX_STAT_SERVER_PORT) {
-		glog.Warningf("server config stat_server_port should be greater than %d and lower than %d",
+		glog.Warningf("Server config stat_server_port should between %d and %d",
 			CFG_MIN_STAT_SERVER_PORT, CFG_MAX_STAT_SERVER_PORT)
 		c.StatServerPort = 0
 	}
@@ -98,23 +97,23 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 		callback := &c.Callbacks[i]
 
 		if "" == callback.Url {
-			glog.Errorf("callback config url should not be empty")
-			return nil, errors.New("callback url is empty")
+			glog.Errorf("Callback config url should not be empty")
+			return nil, errors.New("Callback url is empty")
 		}
 
 		if 0 == len(callback.Topics) {
-			glog.Errorf("callback config topics should not be empty")
-			return nil, errors.New("callback config topics is empty")
+			glog.Errorf("Callback config topics should not be empty")
+			return nil, errors.New("Callback config topics is empty")
 		}
 
 		if 0 == len(callback.Zookeepers) {
-			glog.Errorf("callback config zookeepers should not be empty")
-			return nil, errors.New("callback config zookeepers is empty")
+			glog.Errorf("Callback config zookeepers should not be empty")
+			return nil, errors.New("Callback config zookeepers is empty")
 		}
 
 		callback.Timeout, err = time.ParseDuration(callback.TimeoutStr)
 		if err != nil {
-			glog.Warningf("callback config timeout error(%s),using default.config value:%s",
+			glog.Warningf("Callback config timeout parse failed, using default value [err:%s][default:%s]",
 				err.Error(), callback.TimeoutStr)
 
 			callback.Timeout = CFG_DEFAULT_TIMEOUT
@@ -123,7 +122,7 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 
 		callback.FailedSleep, err = time.ParseDuration(callback.FailedSleepStr)
 		if err != nil {
-			glog.Warningf("callback config failed_sleep error(%s),using default.config value:%s",
+			glog.Warningf("Callback config failed_sleep parse failed, using default value [err:%s][default:%s]",
 				err.Error(), callback.FailedSleepStr)
 
 			callback.FailedSleep = CFG_DEFAULT_FAILED_SLEEP
@@ -131,8 +130,8 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 		}
 
 		if callback.FailedSleep < CFG_MIN_FAILED_SLEEP {
-			glog.Warningf("callback config failed_sleep too small,using min.config value:%s,%s",
-				callback.FailedSleep, callback.FailedSleepStr)
+			glog.Warningf("Callback config failed_sleep too small, using min value [value:%s][strValue:%s]",
+				callback.FailedSleep.String(), callback.FailedSleepStr)
 
 			callback.FailedSleep = CFG_MIN_FAILED_SLEEP
 			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_MIN_FAILED_SLEEP/time.Millisecond)
@@ -140,7 +139,7 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 
 		callback.ProcessingTimeout, err = time.ParseDuration(callback.ProcessingTimeoutStr)
 		if err != nil {
-			glog.Warningf("callback config processing_timeout error(%s),using default.config value:%s",
+			glog.Warningf("Callback config processing_timeout parse failed, using default value [err:%s][default:%s]",
 				err.Error(), callback.ProcessingTimeoutStr)
 
 			callback.ProcessingTimeout = CFG_DEFAULT_PROCESSING_TIMEOUT
@@ -148,8 +147,8 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 		}
 
 		if callback.ProcessingTimeout < CFG_MIN_PROCESSING_TIMEOUT {
-			glog.Warningf("callback config processing_timeout too small,using min.config value:%s,%s",
-				callback.ProcessingTimeout, callback.ProcessingTimeoutStr)
+			glog.Warningf("Callback config processing_timeout too small, using min value [value:%s][strValue:%s]",
+				callback.ProcessingTimeout.String(), callback.ProcessingTimeoutStr)
 
 			callback.ProcessingTimeout = CFG_MIN_PROCESSING_TIMEOUT
 			callback.ProcessingTimeoutStr = fmt.Sprintf("%dms", CFG_MIN_PROCESSING_TIMEOUT/time.Millisecond)
