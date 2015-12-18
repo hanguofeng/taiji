@@ -23,9 +23,9 @@ var (
 
 func init() {
 	flag.StringVar(&configFile, "c", "config.json", "the config file")
-	flag.StringVar(&profileFile, "p", "", "log profile file")
 	flag.BoolVar(&version, "V", false, "show version")
 	flag.BoolVar(&testMode, "t", false, "test config")
+	flag.StringVar(&profileFile, "p", "", "log profile file")
 }
 
 func getVersion() string {
@@ -38,6 +38,8 @@ func showVersion() {
 }
 
 func main() {
+	// set default stderrthreshold to FATAL
+	flag.Set("stderrthreshold", "FATAL")
 	flag.Parse()
 	defer glog.Flush()
 
