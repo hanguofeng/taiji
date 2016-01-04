@@ -202,6 +202,8 @@ func (swa *SlidingWindowArbiter) Run() error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		offsetBaseInit := sync.Once{}
+
 	arbiterMessageLoop:
 		for {
 			select {
@@ -218,9 +220,11 @@ func (swa *SlidingWindowArbiter) Run() error {
 						message.Topic, message.Partition, swa.config.Url, message.Offset)
 
 					// set base
-					if -1 == swa.offsetBase {
-						swa.offsetBase = message.Offset
-					}
+					offsetBaseInit.Do(func() {
+						if -1 == swa.offsetBase {
+							swa.offsetBase = message.Offset
+						}
+					})
 
 					// feed message to transporter
 					select {

@@ -150,6 +150,8 @@ func (ua *UnboundArbiter) Run() error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		offsetBaseInit := sync.Once{}
+
 	arbiterMessageLoop:
 		for {
 			select {
@@ -161,9 +163,11 @@ func (ua *UnboundArbiter) Run() error {
 					message.Topic, message.Partition, ua.config.Url, message.Offset)
 
 				// set base
-				if -1 == ua.offsetBase {
-					ua.offsetBase = message.Offset
-				}
+				offsetBaseInit.Do(func() {
+					if -1 == ua.offsetBase {
+						ua.offsetBase = message.Offset
+					}
+				})
 
 				// feed message to transporter
 				select {
