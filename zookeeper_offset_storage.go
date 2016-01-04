@@ -40,10 +40,10 @@ func NewZookeeperOffsetStorage() OffsetStorage {
 	}
 }
 
-func (zom *ZookeeperOffsetStorage) Init(config OffsetStorageConfig, manager *CallbackManager) error {
-	zom.config = config
-	zom.manager = manager
-	zom.commitInterval = MIN_ZOOKEEPER_OFFSET_STORAGE_COMMIT_INTERVAL
+func (zos *ZookeeperOffsetStorage) Init(config OffsetStorageConfig, manager *CallbackManager) error {
+	zos.config = config
+	zos.manager = manager
+	zos.commitInterval = MIN_ZOOKEEPER_OFFSET_STORAGE_COMMIT_INTERVAL
 
 	// read commitInterval from config
 	if config != nil && config[CONFIG_ZOOKEEPER_OFFSET_STORAGE_COMMIT_INTERVAL] != nil {
@@ -51,8 +51,8 @@ func (zom *ZookeeperOffsetStorage) Init(config OffsetStorageConfig, manager *Cal
 		if reflectValue.Kind() == reflect.String {
 			commitIntervalStr := reflectValue.String()
 			var err error
-			if zom.commitInterval, err = time.ParseDuration(commitIntervalStr); err == nil {
-				if zom.commitInterval < MIN_ZOOKEEPER_OFFSET_STORAGE_COMMIT_INTERVAL {
+			if zos.commitInterval, err = time.ParseDuration(commitIntervalStr); err == nil {
+				if zos.commitInterval < MIN_ZOOKEEPER_OFFSET_STORAGE_COMMIT_INTERVAL {
 					return ERROR_ZOOKEEPER_OFFSET_STORAGE_COMMIT_INTERVAL_CONFIG_NOT_VALID
 				}
 			} else {
@@ -63,111 +63,111 @@ func (zom *ZookeeperOffsetStorage) Init(config OffsetStorageConfig, manager *Cal
 		}
 	}
 
-	zom.offsets = make(OffsetMap)
-	zom.lastCommittedOffsets = make(OffsetMap)
+	zos.offsets = make(OffsetMap)
+	zos.lastCommittedOffsets = make(OffsetMap)
 
 	return nil
 }
 
-func (zom *ZookeeperOffsetStorage) InitializePartition(topic string, partition int32) (int64, error) {
-	zom.l.Lock()
-	defer zom.l.Unlock()
+func (zos *ZookeeperOffsetStorage) InitializePartition(topic string, partition int32) (int64, error) {
+	zos.l.Lock()
+	defer zos.l.Unlock()
 
-	if zom.offsets[topic] == nil {
-		zom.offsets[topic] = make(map[int32]int64)
+	if zos.offsets[topic] == nil {
+		zos.offsets[topic] = make(map[int32]int64)
 	}
 
-	nextOffset, err := zom.manager.GetKazooGroup().FetchOffset(topic, partition)
+	nextOffset, err := zos.manager.GetKazooGroup().FetchOffset(topic, partition)
 	if err != nil {
 		return 0, err
 	}
-	zom.offsets[topic][partition] = nextOffset
+	zos.offsets[topic][partition] = nextOffset
 
 	return nextOffset, nil
 }
 
-func (zom *ZookeeperOffsetStorage) FinalizePartition(topic string, partition int32) error {
-	zom.l.Lock()
-	defer zom.l.Unlock()
-	delete(zom.offsets[topic], partition)
+func (zos *ZookeeperOffsetStorage) FinalizePartition(topic string, partition int32) error {
+	zos.l.Lock()
+	defer zos.l.Unlock()
+	delete(zos.offsets[topic], partition)
 	return nil
 }
 
-func (zom *ZookeeperOffsetStorage) ReadOffset(topic string, partition int32) (int64, error) {
-	zom.l.RLock()
-	defer zom.l.RUnlock()
+func (zos *ZookeeperOffsetStorage) ReadOffset(topic string, partition int32) (int64, error) {
+	zos.l.RLock()
+	defer zos.l.RUnlock()
 
-	if zom.offsets[topic] == nil {
+	if zos.offsets[topic] == nil {
 		return 0, errors.New("Invalid topic")
 	}
 
-	return zom.offsets[topic][partition], nil
+	return zos.offsets[topic][partition], nil
 }
 
-func (zom *ZookeeperOffsetStorage) WriteOffset(topic string, partition int32, offset int64) error {
-	zom.l.Lock()
-	defer zom.l.Unlock()
-	zom.offsets[topic][partition] = offset
+func (zos *ZookeeperOffsetStorage) WriteOffset(topic string, partition int32, offset int64) error {
+	zos.l.Lock()
+	defer zos.l.Unlock()
+	zos.offsets[topic][partition] = offset
 
 	return nil
 }
 
-func (zom *ZookeeperOffsetStorage) Run() error {
-	if err := zom.ensureStart(); err != nil {
+func (zos *ZookeeperOffsetStorage) Run() error {
+	if err := zos.ensureStart(); err != nil {
 		return err
 	}
-	defer zom.markStop()
+	defer zos.markStop()
 
 	// run ticker
-	commitTicker := time.NewTicker(zom.commitInterval)
+	commitTicker := time.NewTicker(zos.commitInterval)
 	defer commitTicker.Stop()
 
 tickerLoop:
 	for {
 		select {
-		case <-zom.WaitForCloseChannel():
+		case <-zos.WaitForCloseChannel():
 			break tickerLoop
 		case <-commitTicker.C:
 			// ticker update
-			zom.l.Lock()
-			for topic, topicOffsets := range zom.offsets {
-				if zom.lastCommittedOffsets[topic] == nil {
-					zom.lastCommittedOffsets[topic] = make(map[int32]int64)
+			zos.l.Lock()
+			for topic, topicOffsets := range zos.offsets {
+				if zos.lastCommittedOffsets[topic] == nil {
+					zos.lastCommittedOffsets[topic] = make(map[int32]int64)
 				}
 
 				for partition, offset := range topicOffsets {
-					if err := zom.manager.GetKazooGroup().CommitOffset(topic, partition, offset); err != nil {
+					if err := zos.manager.GetKazooGroup().CommitOffset(topic, partition, offset); err != nil {
 						glog.Warningf("Failed to commit offset [topic:%s][partition:%d][offset:%d]", topic, partition, offset)
 					} else {
-						zom.lastCommittedOffsets[topic][partition] = offset
+						zos.lastCommittedOffsets[topic][partition] = offset
 					}
 				}
 			}
-			zom.lastCommittedTime = time.Now()
-			zom.l.Unlock()
+			zos.lastCommittedTime = time.Now()
+			zos.l.Unlock()
 		}
 	}
 
-	zom.l.Lock()
-	for topic, _ := range zom.offsets {
-		if zom.offsets[topic] != nil && len(zom.offsets[topic]) > 0 {
+	zos.l.Lock()
+	for topic, _ := range zos.offsets {
+		if zos.offsets[topic] != nil && len(zos.offsets[topic]) > 0 {
 			glog.Warningf("Not all offsets were committed before shutdown was completed")
-			delete(zom.offsets, topic)
+			delete(zos.offsets, topic)
 		}
 	}
-	zom.l.Unlock()
+	zos.l.Unlock()
 
 	return nil
 }
 
-func (zom *ZookeeperOffsetStorage) GetStat() interface{} {
-	zom.l.RLock()
-	defer zom.l.RUnlock()
+func (zos *ZookeeperOffsetStorage) GetStat() interface{} {
+	zos.l.RLock()
+	defer zos.l.RUnlock()
 
 	result := make(map[string]interface{})
-	result["offsets"] = stringKeyOffsetMap(zom.offsets)
-	result["committed_offsets"] = stringKeyOffsetMap(zom.lastCommittedOffsets)
-	result["committed_time"] = zom.lastCommittedTime.Local()
+	result["offsets"] = stringKeyOffsetMap(zos.offsets)
+	result["committed_offsets"] = stringKeyOffsetMap(zos.lastCommittedOffsets)
+	result["committed_time"] = zos.lastCommittedTime.Local()
 
 	return result
 }
