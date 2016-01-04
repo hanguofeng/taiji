@@ -245,4 +245,6 @@ func (swa *SlidingWindowArbiter) GetStat() interface{} {
 
 func init() {
 	RegisterArbiter("SlidingWindow", NewSlidingWindowArbiter)
+	RegisterArbiter("sliding_window", NewSlidingWindowArbiter)
+	RegisterArbiter("sliding", NewSlidingWindowArbiter)
 }

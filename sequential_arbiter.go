@@ -121,4 +121,5 @@ func (sa *SequentialArbiter) GetStat() interface{} {
 
 func init() {
 	RegisterArbiter("Sequential", NewSequentialArbiter)
+	RegisterArbiter("seq", NewSequentialArbiter)
 }
