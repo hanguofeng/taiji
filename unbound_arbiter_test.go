@@ -111,7 +111,7 @@ func TestUnboundArbiter(t *testing.T) {
 			t.Logf("Message received [offset:%d]", message.Offset)
 		case <-time.After(time.Second):
 			// force yield, wait for arbiter goroutine to process
-			t.Fatalf("Ready message not received when window is not full")
+			t.Fatalf("Message not available")
 		}
 	}
 
@@ -122,7 +122,7 @@ func TestUnboundArbiter(t *testing.T) {
 			case <-messages:
 			case <-time.After(time.Second):
 				// force yield, wait for arbiter goroutine to process
-				t.Fatalf("Ready message not received when window is not full")
+				t.Fatalf("Message not available")
 			}
 			time.Sleep(time.Microsecond)
 		}
