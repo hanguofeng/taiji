@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -258,11 +259,11 @@ func (ht *HTTPTransporter) delivery(messageData *MessageBody, message *sarama.Co
 			if err != nil {
 				responseBody = []byte{}
 			}
-			// TODO, never let responseBody corrupt my log
 			atomic.AddUint64(&ht.serverFailures, 1)
 			glog.Errorf(
 				"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][responseCode:%d][cost:%.2fms][responseBody:%s]",
-				message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, res.StatusCode, rpcTime, responseBody)
+				message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, res.StatusCode, rpcTime,
+				url.QueryEscape(responseBody))
 		}
 	} else {
 		atomic.AddUint64(&ht.netFailures, 1)
