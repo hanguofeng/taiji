@@ -263,7 +263,7 @@ func (ht *HTTPTransporter) delivery(messageData *MessageBody, message *sarama.Co
 			glog.Errorf(
 				"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][responseCode:%d][cost:%.2fms][responseBody:%s]",
 				message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, res.StatusCode, rpcTime,
-				url.QueryEscape(responseBody))
+				url.QueryEscape(string(responseBody)))
 		}
 	} else {
 		atomic.AddUint64(&ht.netFailures, 1)
