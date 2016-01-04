@@ -73,7 +73,7 @@ func TestStartStopControlBlockOnWaitForClose(t *testing.T) {
 	case <-waitForCloseTest.WaitForExitChannel():
 	}
 
-	assert.Equal(t, CLOSED, waitForCloseTest.getState(), "Service state is not ready")
+	assert.Equal(t, CLOSED, waitForCloseTest.getState(), "Service state is not closed")
 
 	t.Logf("Monitor Routine, Wait BlockOnWaitForCloseTest exit success")
 }
