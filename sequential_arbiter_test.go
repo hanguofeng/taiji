@@ -2,23 +2,24 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/assert"
 )
 
-type PartitionConsumerMock struct {
+type SequentialArbiterPartitionConsumerMock struct {
 	stopper  chan struct{}
 	messages chan *sarama.ConsumerMessage
 	errors   chan *sarama.ConsumerError
 }
 
-func (pcm *PartitionConsumerMock) Init() {
+func (pcm *SequentialArbiterPartitionConsumerMock) Init() {
 	pcm.messages = make(chan *sarama.ConsumerMessage, 5)
 	pcm.errors = make(chan *sarama.ConsumerError)
 
 	go func() {
-		i := int64(-5)
+		i := int64(1)
 
 	partitionConsumerMockLoop:
 		for {
@@ -37,23 +38,23 @@ func (pcm *PartitionConsumerMock) Init() {
 	}()
 }
 
-func (pcm *PartitionConsumerMock) Errors() <-chan *sarama.ConsumerError {
+func (pcm *SequentialArbiterPartitionConsumerMock) Errors() <-chan *sarama.ConsumerError {
 	return pcm.errors
 }
 
-func (pcm *PartitionConsumerMock) Messages() <-chan *sarama.ConsumerMessage {
+func (pcm *SequentialArbiterPartitionConsumerMock) Messages() <-chan *sarama.ConsumerMessage {
 	return pcm.messages
 }
 
-func (pcm *PartitionConsumerMock) Close() error {
+func (pcm *SequentialArbiterPartitionConsumerMock) Close() error {
 	close(pcm.stopper)
 	return nil
 }
 
-func (*PartitionConsumerMock) AsyncClose() {
+func (*SequentialArbiterPartitionConsumerMock) AsyncClose() {
 }
 
-func (*PartitionConsumerMock) HighWaterMarkOffset() int64 {
+func (*SequentialArbiterPartitionConsumerMock) HighWaterMarkOffset() int64 {
 	return 0
 }
 
@@ -62,12 +63,17 @@ func TestSequentialArbiter(t *testing.T) {
 	arbiter, err := NewArbiter("Sequential")
 	assert.Nil(t, err, "Create SequentialArbiter failed")
 
+	// config/callbackManager init
 	callbackConfig := &CallbackItemConfig{
 		Url: "http://invalid_url_that_should_never_deliver",
 	}
-	arbiterConfig := make(ArbiterConfig)
-	callbackManager := &CallbackManager{}
-	partitionConsumerMock := &PartitionConsumerMock{
+	callbackConfig.OffsetConfig.StorageName = "null"
+	offsetManager := NewOffsetManager()
+	callbackManager := &CallbackManager{
+		offsetManager: offsetManager,
+	}
+	offsetManager.Init(callbackConfig.OffsetConfig, callbackManager)
+	partitionConsumerMock := &SequentialArbiterPartitionConsumerMock{
 		stopper: make(chan struct{}),
 	}
 	partitionConsumerMock.Init()
@@ -77,8 +83,10 @@ func TestSequentialArbiter(t *testing.T) {
 		},
 		manager: callbackManager,
 	}
+
+	// arbiter init
 	t.Log("Initializing SequentialArbiter")
-	arbiter.Init(callbackConfig, arbiterConfig, manager)
+	arbiter.Init(callbackConfig, callbackConfig.ArbiterConfig, manager)
 	t.Log("Started SequentialArbiter")
 	go arbiter.Run()
 	defer arbiter.Close()
@@ -88,8 +96,8 @@ func TestSequentialArbiter(t *testing.T) {
 	}
 	messages := arbiter.MessageChannel()
 	offsets := arbiter.OffsetChannel()
-	lastOffset := int64(-6)
-	lastCommit := int64(-6)
+	lastOffset := int64(0)
+	lastCommit := int64(0)
 
 	// first try loop get 3 messages for test
 	for i := 0; i != 3; i++ {
@@ -110,7 +118,8 @@ func TestSequentialArbiter(t *testing.T) {
 		select {
 		case message := <-messages:
 			t.Fatalf("Ready two message without offset commit [offset:%d]", message.Offset)
-		default:
+		case <-time.After(time.Microsecond):
+			// force yield, wait for arbiter goroutine to process
 			t.Logf("No message is received before commit offset, SequentialArbiter take effect, sending offset [offset:%d]",
 				lastOffset)
 			offsets <- lastOffset
@@ -118,7 +127,7 @@ func TestSequentialArbiter(t *testing.T) {
 		}
 	}
 
-	if lastOffset != -3 || lastCommit != -3 {
+	if lastOffset != 3 || lastCommit != 3 {
 		t.Fatalf("SequentialArbiter not working normally [lastOffset:%d][lastCommit:%d]",
 			lastOffset, lastCommit)
 	}
