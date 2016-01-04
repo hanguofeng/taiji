@@ -2,7 +2,6 @@ package main
 
 import (
 	"io/ioutil"
-	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -170,7 +169,6 @@ func TestLoadConfigFile(t *testing.T) {
 	assert.Equal(t, "/kafka", config.Callbacks[0].ZkPath, "ZkPath not correct")
 	assert.Equal(t, "raw", config.Callbacks[0].Serializer, "Serializer not correct")
 	assert.Equal(t, "json", config.Callbacks[0].ContentType, "ContentType not correct")
-	assert.Equal(t, 100, config.Callbacks[0].LogCollectRatio, "LogCollectRatio not correct")
 	assert.Equal(t, "zookeeper", config.Callbacks[0].OffsetConfig.StorageName, "OffsetConfig.StorageName not correct")
 	assert.NotEmpty(t, config.Callbacks[0].OffsetConfig.StorageConfig, "OffsetStorage.StorageConfig is empty")
 	assert.Equal(t, "10s", config.Callbacks[0].OffsetConfig.StorageConfig["commit_interval"],
@@ -203,7 +201,7 @@ func TestLoadConfigFileEx(t *testing.T) {
 	t.Logf("Config file parse result: %#v", config)
 
 	// check config parse result
-	assert.Equal(t, http.DefaultMaxIdleConnsPerHost, config.ConnectionPoolSize, "ConnectionPoolSize not fallback to default")
+	assert.Equal(t, CFG_DEFAULT_HTTP_CONNECTION_POOL_SIZE, config.ConnectionPoolSize, "ConnectionPoolSize not fallback to default")
 	assert.Equal(t, 0, config.StatServerPort, "StatServerPort not fallback to zero")
 	assert.Equal(t, CFG_DEFAULT_TIMEOUT, config.Callbacks[0].Timeout, "Timeout not fallback to default")
 	assert.Equal(t, CFG_DEFAULT_FAILED_SLEEP, config.Callbacks[0].FailedSleep, "FailedSleep not fallback to default")
@@ -211,7 +209,6 @@ func TestLoadConfigFileEx(t *testing.T) {
 		"ProcessingTimeout not fallback to default")
 	assert.Equal(t, CFG_DEFAULT_MASTER_OFFSET_STORAGE, config.Callbacks[0].OffsetConfig.StorageName,
 		"OffsetConfig.StorageName not fallback to default")
-	assert.Equal(t, DEFAULT_LOG_COLLECT_RATIO, config.Callbacks[0].LogCollectRatio, "LogCollectRatio not fallback to default")
 
 	file, err = ioutil.TempFile("", "config_file_")
 	assert.Nil(t, err, "Create tempfile failed, failed to test")

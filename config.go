@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"time"
 
@@ -13,17 +12,17 @@ import (
 )
 
 const (
-	CFG_DEFAULT_TIMEOUT               = time.Second
-	CFG_DEFAULT_FAILED_SLEEP          = time.Second
-	CFG_MIN_FAILED_SLEEP              = time.Second
-	CFG_DEFAULT_PROCESSING_TIMEOUT    = 10 * time.Second
-	CFG_MIN_PROCESSING_TIMEOUT        = 10 * time.Second
-	CFG_MIN_STAT_SERVER_PORT          = 8000
-	CFG_MAX_STAT_SERVER_PORT          = 10000
-	CFG_DEFAULT_MASTER_OFFSET_STORAGE = "zookeeper"
-	CFG_DEFAULT_ARBITER               = "sequential"
-	CFG_DEFAULT_TRANSPORTER           = "http"
-	DEFAULT_LOG_COLLECT_RATIO         = 20
+	CFG_DEFAULT_TIMEOUT                   = time.Second
+	CFG_DEFAULT_FAILED_SLEEP              = time.Second
+	CFG_MIN_FAILED_SLEEP                  = time.Second
+	CFG_DEFAULT_PROCESSING_TIMEOUT        = 10 * time.Second
+	CFG_MIN_PROCESSING_TIMEOUT            = 10 * time.Second
+	CFG_MIN_STAT_SERVER_PORT              = 8000
+	CFG_MAX_STAT_SERVER_PORT              = 10000
+	CFG_DEFAULT_HTTP_CONNECTION_POOL_SIZE = 1000
+	CFG_DEFAULT_MASTER_OFFSET_STORAGE     = "zookeeper"
+	CFG_DEFAULT_ARBITER                   = "sequential"
+	CFG_DEFAULT_TRANSPORTER               = "http"
 )
 
 type MapConfig map[string]interface{}
@@ -51,7 +50,6 @@ type CallbackItemConfig struct {
 	ZkPath               string             `json:"zk_path"`
 	Serializer           string             `json:"serializer"`
 	ContentType          string             `json:"content_type"`
-	LogCollectRatio      int                `json:"log_collect_ratio"`
 	OffsetConfig         OffsetMangerConfig `json:"offset"`
 	ArbiterName          string             `json:"arbiter_name"`
 	ArbiterConfig        ArbiterConfig      `json:"arbiter_config"`
@@ -84,7 +82,7 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 	}
 
 	if c.ConnectionPoolSize <= 0 {
-		c.ConnectionPoolSize = http.DefaultMaxIdleConnsPerHost
+		c.ConnectionPoolSize = CFG_DEFAULT_HTTP_CONNECTION_POOL_SIZE
 	}
 
 	if c.StatServerPort != 0 && (c.StatServerPort < CFG_MIN_STAT_SERVER_PORT || c.StatServerPort >= CFG_MAX_STAT_SERVER_PORT) {
@@ -165,11 +163,6 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 		if callback.TransporterName == "" {
 			callback.TransporterName = CFG_DEFAULT_TRANSPORTER
 		}
-
-		if callback.LogCollectRatio <= 0 {
-			callback.LogCollectRatio = DEFAULT_LOG_COLLECT_RATIO
-		}
-
 	}
 
 	return c, nil
