@@ -89,6 +89,10 @@ func (sr *ServiceRunner) run(services []Runnable, daemon bool) (<-chan error, er
 	event := make(chan int, channelSize)
 	errorEvent := make(chan error, channelSize)
 	servicesWatcher := func(idx int) {
+		if !sr.Running() {
+			errorEvent <- nil
+			return
+		}
 		err := services[idx].Run()
 		errorEvent <- err
 		event <- idx
@@ -110,6 +114,9 @@ func (sr *ServiceRunner) run(services []Runnable, daemon bool) (<-chan error, er
 				}
 			}
 		}
+
+		// mark myself closing
+		sr.markClosing()
 
 		// close each runnable
 		wg := sync.WaitGroup{}

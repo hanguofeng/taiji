@@ -29,6 +29,10 @@ func (cr *ConcurrencyRunner) run(service Runnable, daemon bool) (<-chan error, e
 	event := make(chan bool, channelSize)
 	errorEvent := make(chan error, channelSize)
 	servicesWatcher := func() {
+		if !cr.Running() {
+			errorEvent <- nil
+			return
+		}
 		err := service.Run()
 		errorEvent <- err
 		event <- true
@@ -49,6 +53,9 @@ func (cr *ConcurrencyRunner) run(service Runnable, daemon bool) (<-chan error, e
 				}
 			}
 		}
+
+		// mark closing
+		cr.markClosing()
 
 		service.Close()
 	}
