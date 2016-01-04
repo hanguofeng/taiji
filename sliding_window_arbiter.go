@@ -81,13 +81,24 @@ func (swa *SlidingWindowArbiter) Init(config *CallbackItemConfig, arbiterConfig 
 		return ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_EXISTS
 	}
 
-	windowSize, ok := arbiterConfig[CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE].(float64)
-
-	if !ok {
+	switch arbiterConfig[CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE].(type) {
+	case float32:
+		swa.windowSize = int(arbiterConfig[CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE].(float32))
+	case float64:
+		swa.windowSize = int(arbiterConfig[CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE].(float64))
+	case int:
+		swa.windowSize = int(arbiterConfig[CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE].(int))
+	case int32:
+		swa.windowSize = int(arbiterConfig[CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE].(int32))
+	case int64:
+		swa.windowSize = int(arbiterConfig[CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE].(int64))
+	case uint32:
+		swa.windowSize = int(arbiterConfig[CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE].(uint32))
+	case uint64:
+		swa.windowSize = int(arbiterConfig[CONFIG_SLIDING_WINDOW_ARBITER_WINDOW_SIZE].(uint64))
+	default:
 		return ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_VALID
 	}
-
-	swa.windowSize = int(windowSize)
 
 	if swa.windowSize <= 0 {
 		return ERROR_SLIDING_WINDOW_ARBITER_CONFIG_NOT_VALID
