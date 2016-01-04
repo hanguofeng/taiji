@@ -261,7 +261,7 @@ func (ht *HTTPTransporter) delivery(messageData *MessageBody, message *sarama.Co
 			// TODO, never let responseBody corrupt my log
 			atomic.AddUint64(&ht.serverFailures, 1)
 			glog.Errorf(
-				"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][responseCode:%d][cost:%.2fms][responseBody:%s']",
+				"Delivery failed [topic:%s][partition:%d][url:%s][offset:%d][retryTime:%d][responseCode:%d][cost:%.2fms][responseBody:%s]",
 				message.Topic, message.Partition, ht.Callback.Url, message.Offset, retryTime, res.StatusCode, rpcTime, responseBody)
 		}
 	} else {
