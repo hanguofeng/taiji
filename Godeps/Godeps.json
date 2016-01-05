@@ -4,8 +4,8 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/Shopify/sarama",
-			"Comment": "v1.6.1",
-			"Rev": "35093741160a61deca1a9b08fb5f508c6cece9c8"
+			"Comment": "v1.7.0-22-gc68fea7",
+			"Rev": "c68fea7c711d386b09295428ad51de11f9b2078a"
 		},
 		{
 			"ImportPath": "github.com/davecgh/go-spew/spew",
@@ -13,8 +13,8 @@
 		},
 		{
 			"ImportPath": "github.com/eapache/go-resiliency/breaker",
-			"Comment": "v1.0.0-3-gf341fb4",
-			"Rev": "f341fb4dca45128e4aa86389fa6a675d55fe25e1"
+			"Comment": "v1.0.0-4-gb86b1ec",
+			"Rev": "b86b1ec0dd4209a588dc1285cdd471e73525c0b3"
 		},
 		{
 			"ImportPath": "github.com/eapache/queue",
@@ -35,11 +35,11 @@
 		},
 		{
 			"ImportPath": "github.com/gorilla/mux",
-			"Rev": "9c068cf16d982f8bd444b8c352acbeec34c4fe5b"
+			"Rev": "26a6070f849969ba72b72256e9f14cf519751690"
 		},
 		{
 			"ImportPath": "github.com/klauspost/crc32",
-			"Rev": "3e5c38b8b170916b332a5ccb25f921314b98ba01"
+			"Rev": "a3b15ae34567abb20a22992b989cd76f48d09c47"
 		},
 		{
 			"ImportPath": "github.com/pmezard/go-difflib/difflib",
@@ -51,8 +51,8 @@
 		},
 		{
 			"ImportPath": "github.com/stretchr/testify/assert",
-			"Comment": "v1.0-88-ge3a8ff8",
-			"Rev": "e3a8ff8ce36581f87a15341206f205b1da467059"
+			"Comment": "v1.0-91-g5b9da39",
+			"Rev": "5b9da39b66e8e994455c2525c4421c8cc00a7f93"
 		},
 		{
 			"ImportPath": "github.com/wvanbergen/kazoo-go",
