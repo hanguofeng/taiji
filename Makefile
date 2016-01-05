@@ -29,6 +29,10 @@ build:
 clean:
 	@test ! -e ${BIN_NAME} || rm -v ${BIN_NAME}
 
+update:
+	@echo -e "\033[32;1mUpdating godeps in global GOPATH\033[0m"
+	go get -u `go list -json | grep github.com | grep -v kafka-pusher | awk '{print $1;}' | tr -d '",' | sort -u`
+
 save:
 	@echo -e "\033[32;1mUpdating godeps\033[0m"
 	godep update `go list -json | grep github.com | grep -v kafka-pusher | awk '{print $1;}' | tr -d '",' | sort -u`
