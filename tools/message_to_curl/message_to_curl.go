@@ -41,7 +41,7 @@ func init() {
 	flag.StringVar(&serializer, "serializer", "raw", "message serializer name")
 	flag.StringVar(&contentType, "type", "", "message content type")
 	flag.StringVar(&callback, "callback", "http://url_to_replace", "callback url to build")
-	zk.DefaultLogger = log.New(ioutil.Discard, "[Sarama] ", log.LstdFlags)
+	zk.DefaultLogger = log.New(ioutil.Discard, "[Zookeeper] ", log.LstdFlags)
 }
 
 func escapeShellArg(arg string) string {
