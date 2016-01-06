@@ -16,7 +16,7 @@
             "zk_path": "/kafka",
             "serializer": "raw",
             "content_type": "json",
-            "connection_pool_size": 1,
+            "connection_pool_size": 1
         }
     ]
 }
