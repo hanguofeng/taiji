@@ -155,6 +155,7 @@ func main() {
 
 		// get all old offsets
 		for oldCallback, topics := range oldCallbackTopics {
+			fmt.Fprintf(os.Stderr, "Processing %s\n", oldCallback)
 			oldCallbackConsumerGroup := kazooInstance.Consumergroup(getGroupName(oldCallback))
 			offsets, err := oldCallbackConsumerGroup.FetchAllOffsets()
 			if err != nil {
@@ -164,6 +165,7 @@ func main() {
 
 			// commit to new group
 			for _, topic := range topics {
+				fmt.Fprintf(os.Stderr, "Processing %s:%s\n", oldCallback, topic)
 				if offsets[topic] != nil {
 					for partition, offset := range offsets[topic] {
 						if err := newCallbackConsumerGroup.CommitOffset(topic, partition, offset); err != nil {
