@@ -22,12 +22,15 @@ GIT_COMMIT="$(shell git rev-parse --short HEAD)"
 # Check if there are uncommited changes
 GIT_DIRTY="$(shell test -n "`git status --porcelain`" && echo "+CHANGES" || true)"
 
-build:
+all: kafkapusher tools
+
+kafkapusher: *.go
 	@echo -e "\033[32;1mBuilding\033[0m \033[33;1m${OWNER} ${BIN_NAME}\033[0m \033[31m${VERSION}-${GIT_COMMIT}${GIT_DIRTY}\033[0m"
 	godep go build -ldflags "-X main.gitCommit=${GIT_COMMIT}${GIT_DIRTY}" -o ${BIN_NAME}
 
 clean:
 	@test ! -e ${BIN_NAME} || rm -v ${BIN_NAME}
+	$(MAKE) -C tools clean
 
 update:
 	@echo -e "\033[32;1mUpdating godeps in global GOPATH\033[0m"
@@ -52,4 +55,8 @@ format:
 	gofmt -w *.go
 	goimports -w *.go
 
-.PHONY: build dist clean save test format cover
+tools:
+	@echo -e "\033[32;1mBuilding tools\033[0m"
+	$(MAKE) -C tools
+
+.PHONY: all tools clean save test format cover
