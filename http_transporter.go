@@ -144,10 +144,10 @@ func (ht *HTTPTransporter) processMessage(message *sarama.ConsumerMessage, offse
 	}
 
 	// delivery Content-Type
-	if "" != ht.ContentType {
+	if ht.ContentType != "" {
 		messageData.ContentType = ht.ContentType
-	} else if "" == ht.ContentType {
-		ht.ContentType = HTTP_FORM_ENCODING
+	} else if messageData.ContentType == "" {
+		messageData.ContentType = HTTP_FORM_ENCODING
 	}
 
 	rpcStartTime := time.Now()
