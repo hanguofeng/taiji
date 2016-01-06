@@ -2,7 +2,7 @@ SHELL=/bin/bash
 
 BIN_NAME := $(notdir $(shell pwd))
 
-$(BIN_NAME):
+$(BIN_NAME): *.go
 	go build
 
 clean:

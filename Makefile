@@ -24,7 +24,7 @@ GIT_DIRTY="$(shell test -n "`git status --porcelain`" && echo "+CHANGES" || true
 
 all: kafkapusher tools
 
-kafkapusher: *.go
+${BIN_NAME}: *.go
 	@echo -e "\033[32;1mBuilding\033[0m \033[33;1m${OWNER} ${BIN_NAME}\033[0m \033[31m${VERSION}-${GIT_COMMIT}${GIT_DIRTY}\033[0m"
 	godep go build -ldflags "-X main.gitCommit=${GIT_COMMIT}${GIT_DIRTY}" -o ${BIN_NAME}
 
