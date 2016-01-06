@@ -4,6 +4,7 @@ DIRS := $(shell find . -maxdepth 1 -type d)
 DIRS := $(basename $(patsubst ./%,%,$(DIRS)))
 BUILDDIRS = $(DIRS:%=build-%)
 CLEANDIRS = $(DIRS:%=clean-%)
+FORMATDIRS = $(DIRS:%=format-%)
 
 all: $(BUILDDIRS)
 $(DIRS): $(BUILDDIRS)
@@ -14,4 +15,8 @@ clean: $(CLEANDIRS)
 $(CLEANDIRS):
 	make -C $(@:clean-%=%) clean
 
-.PHONY: all clean $(BUILDDIRS) $(CLEANDIRS)
+format: $(FORMATDIRS)
+$(FORMATDIRS):
+	make -C $(@:format-%=%) format
+
+.PHONY: all clean format $(BUILDDIRS) $(CLEANDIRS)

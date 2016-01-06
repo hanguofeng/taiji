@@ -54,6 +54,7 @@ format:
 	@echo -e "\033[32;1mFormatting code\033[0m"
 	gofmt -w *.go
 	goimports -w *.go
+	$(MAKE) -C tools format
 
 tools:
 	@echo -e "\033[32;1mBuilding tools\033[0m"

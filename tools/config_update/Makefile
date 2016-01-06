@@ -8,4 +8,8 @@ $(BIN_NAME):
 clean:
 	test ! -e $(BIN_NAME) || rm -v $(BIN_NAME)
 
-.PHONY: all clean $(BUILDDIRS) $(CLEANDIRS)
+format:
+	gofmt -w *.go
+	goimports -w *.go
+
+.PHONY: all clean format $(BUILDDIRS) $(CLEANDIRS)
