@@ -15,8 +15,6 @@ const (
 	CFG_DEFAULT_TIMEOUT                   = time.Second
 	CFG_DEFAULT_FAILED_SLEEP              = time.Second
 	CFG_MIN_FAILED_SLEEP                  = time.Second
-	CFG_DEFAULT_PROCESSING_TIMEOUT        = 10 * time.Second
-	CFG_MIN_PROCESSING_TIMEOUT            = 10 * time.Second
 	CFG_MIN_STAT_SERVER_PORT              = 8000
 	CFG_MAX_STAT_SERVER_PORT              = 10000
 	CFG_DEFAULT_HTTP_CONNECTION_POOL_SIZE = 1000
@@ -37,27 +35,25 @@ type OffsetMangerConfig struct {
 }
 
 type CallbackItemConfig struct {
-	WorkerNum            int                `json:"worker_num"`
-	Url                  string             `json:"url"`
-	RetryTimes           int                `json:"retry_times"`
-	TimeoutStr           string             `json:"timeout"`
-	Timeout              time.Duration      `json:"null,omitempty"`
-	BypassFailed         bool               `json:"bypass_failed"`
-	FailedSleepStr       string             `json:"failed_sleep"`
-	FailedSleep          time.Duration      `json:"null,omitempty"`
-	Topics               []string           `json:"topics"`
-	Zookeepers           []string           `json:"zookeepers"`
-	ZkPath               string             `json:"zk_path"`
-	Serializer           string             `json:"serializer"`
-	ContentType          string             `json:"content_type"`
-	OffsetConfig         OffsetMangerConfig `json:"offset"`
-	ArbiterName          string             `json:"arbiter_name"`
-	ArbiterConfig        ArbiterConfig      `json:"arbiter_config"`
-	TransporterName      string             `json:"transporter_name"`
-	TransporterConfig    TransporterConfig  `json:"transporter_config"`
-	InitialFromOldest    bool               `json:"initial_from_oldest"`
-	ProcessingTimeout    time.Duration      `json:"null,omitempty"`
-	ProcessingTimeoutStr string             `json:"processing_timeout"`
+	WorkerNum         int                `json:"worker_num"`
+	Url               string             `json:"url"`
+	RetryTimes        int                `json:"retry_times"`
+	TimeoutStr        string             `json:"timeout"`
+	Timeout           time.Duration      `json:"null,omitempty"`
+	BypassFailed      bool               `json:"bypass_failed"`
+	FailedSleepStr    string             `json:"failed_sleep"`
+	FailedSleep       time.Duration      `json:"null,omitempty"`
+	Topics            []string           `json:"topics"`
+	Zookeepers        []string           `json:"zookeepers"`
+	ZkPath            string             `json:"zk_path"`
+	Serializer        string             `json:"serializer"`
+	ContentType       string             `json:"content_type"`
+	OffsetConfig      OffsetMangerConfig `json:"offset"`
+	ArbiterName       string             `json:"arbiter_name"`
+	ArbiterConfig     ArbiterConfig      `json:"arbiter_config"`
+	TransporterName   string             `json:"transporter_name"`
+	TransporterConfig TransporterConfig  `json:"transporter_config"`
+	InitialFromOldest bool               `json:"initial_from_oldest"`
 }
 
 type ServiceConfig struct {
@@ -133,23 +129,6 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 
 			callback.FailedSleep = CFG_MIN_FAILED_SLEEP
 			callback.FailedSleepStr = fmt.Sprintf("%dms", CFG_MIN_FAILED_SLEEP/time.Millisecond)
-		}
-
-		callback.ProcessingTimeout, err = time.ParseDuration(callback.ProcessingTimeoutStr)
-		if err != nil {
-			glog.Warningf("Callback config processing_timeout parse failed, using default value [err:%s][default:%s]",
-				err.Error(), callback.ProcessingTimeoutStr)
-
-			callback.ProcessingTimeout = CFG_DEFAULT_PROCESSING_TIMEOUT
-			callback.ProcessingTimeoutStr = fmt.Sprintf("%dms", CFG_DEFAULT_PROCESSING_TIMEOUT/time.Millisecond)
-		}
-
-		if callback.ProcessingTimeout < CFG_MIN_PROCESSING_TIMEOUT {
-			glog.Warningf("Callback config processing_timeout too small, using min value [value:%s][strValue:%s]",
-				callback.ProcessingTimeout.String(), callback.ProcessingTimeoutStr)
-
-			callback.ProcessingTimeout = CFG_MIN_PROCESSING_TIMEOUT
-			callback.ProcessingTimeoutStr = fmt.Sprintf("%dms", CFG_MIN_PROCESSING_TIMEOUT/time.Millisecond)
 		}
 
 		if callback.OffsetConfig.StorageName == "" {

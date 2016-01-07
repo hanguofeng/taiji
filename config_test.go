@@ -28,7 +28,6 @@ const (
             "zk_path": "/kafka",
             "serializer": "raw",
             "content_type": "json",
-			"log_collect_ratio": 100,
 			"offset": {
 				"storage_name": "zookeeper",
 				"storage_config": {
@@ -44,8 +43,7 @@ const (
 			"arbiter_config": {},
 			"transporter_name": "http",
 			"transporter_config": {},
-			"initial_from_oldest": false,
-			"processing_timeout": "50s"
+			"initial_from_oldest": false
         }
     ],
     "log_file": "test.log",
@@ -71,7 +69,6 @@ const (
             "zk_path": "/kafka",
             "serializer": "raw",
             "content_type": "json",
-			"log_collect_ratio": -1,
 			"offset": {
 				"storage_name": "",
 				"storage_config": {
@@ -87,8 +84,7 @@ const (
 			"arbiter_config": {},
 			"transporter_name": "http",
 			"transporter_config": {},
-			"initial_from_oldest": false,
-			"processing_timeout": "5s"
+			"initial_from_oldest": false
         }
     ],
     "log_file": "test.log",
@@ -114,7 +110,6 @@ const (
             "zk_path": "/kafka",
             "serializer": "raw",
             "content_type": "json",
-			"log_collect_ratio": -1,
 			"offset": {
 				"storage_name": "",
 				"storage_config": {
@@ -130,8 +125,7 @@ const (
 			"arbiter_config": {},
 			"transporter_name": "http",
 			"transporter_config": {},
-			"initial_from_oldest": false,
-			"processing_timeout": "abcd"
+			"initial_from_oldest": false
         }
     ],
     "log_file": "test.log",
@@ -183,7 +177,6 @@ func TestLoadConfigFile(t *testing.T) {
 	assert.Equal(t, "http", config.Callbacks[0].TransporterName, "TransporterName is not correct")
 	assert.Empty(t, config.Callbacks[0].TransporterConfig, "TransporterConfig is not empty")
 	assert.False(t, config.Callbacks[0].InitialFromOldest, "InitialFromOldest is not false")
-	assert.Equal(t, 50*time.Second, config.Callbacks[0].ProcessingTimeout, "ProcessingTimeout is not correct")
 }
 
 func TestLoadConfigFileEx(t *testing.T) {
@@ -205,8 +198,6 @@ func TestLoadConfigFileEx(t *testing.T) {
 	assert.Equal(t, 0, config.StatServerPort, "StatServerPort not fallback to zero")
 	assert.Equal(t, CFG_DEFAULT_TIMEOUT, config.Callbacks[0].Timeout, "Timeout not fallback to default")
 	assert.Equal(t, CFG_DEFAULT_FAILED_SLEEP, config.Callbacks[0].FailedSleep, "FailedSleep not fallback to default")
-	assert.Equal(t, CFG_DEFAULT_PROCESSING_TIMEOUT, config.Callbacks[0].ProcessingTimeout,
-		"ProcessingTimeout not fallback to default")
 	assert.Equal(t, CFG_DEFAULT_MASTER_OFFSET_STORAGE, config.Callbacks[0].OffsetConfig.StorageName,
 		"OffsetConfig.StorageName not fallback to default")
 
@@ -224,8 +215,6 @@ func TestLoadConfigFileEx(t *testing.T) {
 	t.Logf("Config file parse result: %#v", config)
 
 	assert.Equal(t, CFG_DEFAULT_FAILED_SLEEP, config.Callbacks[0].FailedSleep, "FailedSleep not fallback to default")
-	assert.Equal(t, CFG_DEFAULT_PROCESSING_TIMEOUT, config.Callbacks[0].ProcessingTimeout,
-		"ProcessingTimeout not fallback to default")
 }
 
 func TestLoadConfigFileFailed(t *testing.T) {
