@@ -132,6 +132,80 @@ const (
     "connection_pool_size": -5,
     "stat_server_port": 500
 }`
+
+	TEST_CONFIG_FILE_CONTENT_DUPLICATE_CALLBACK = `{
+	"consumer_groups": [
+        {
+            "worker_num" : 8,
+            "url": "http://localhost:8080/foo",
+            "retry_times": 4,
+            "timeout": "3s",
+            "bypass_failed":true,
+            "failed_sleep":"12s",
+            "topics": [
+                "yanl"
+            ],
+            "zookeepers": [
+                "127.0.0.1:2181"
+            ],
+            "zk_path": "/kafka",
+            "serializer": "raw",
+            "content_type": "json",
+			"offset": {
+				"storage_name": "zookeeper",
+				"storage_config": {
+					"commit_interval": "10s"
+				},
+				"slave_storage_config": {
+					"file": {
+						"file_name": "test_offset_file"
+					}
+				}
+			},
+			"arbiter_name": "sequential",
+			"arbiter_config": {},
+			"transporter_name": "http",
+			"transporter_config": {},
+			"initial_from_oldest": false
+        },
+        {
+            "worker_num" : 8,
+            "url": "http://localhost:8080/foo",
+            "retry_times": 4,
+            "timeout": "3s",
+            "bypass_failed":true,
+            "failed_sleep":"12s",
+            "topics": [
+                "yanl"
+            ],
+            "zookeepers": [
+                "127.0.0.1:2181"
+            ],
+            "zk_path": "/kafka",
+            "serializer": "raw",
+            "content_type": "json",
+			"offset": {
+				"storage_name": "zookeeper",
+				"storage_config": {
+					"commit_interval": "10s"
+				},
+				"slave_storage_config": {
+					"file": {
+						"file_name": "test_offset_file"
+					}
+				}
+			},
+			"arbiter_name": "sequential",
+			"arbiter_config": {},
+			"transporter_name": "http",
+			"transporter_config": {},
+			"initial_from_oldest": false
+        }
+    ],
+    "log_file": "test.log",
+    "connection_pool_size": 10,
+    "stat_server_port": 8080
+}`
 )
 
 func TestLoadConfigFile(t *testing.T) {
@@ -275,5 +349,20 @@ func TestLoadConfigFileFailed(t *testing.T) {
 
 	_, err = LoadConfigFile(fileName4)
 	assert.NotNil(t, err, "This config file contains no zookeeprs, impossible to load")
+	t.Logf("Parse config file failed [%v]", err)
+}
+
+func TestLoadConfigFileWithDuplicatedCallback(t *testing.T) {
+	file, err := ioutil.TempFile("", "config_file_")
+	assert.Nil(t, err, "Create tempfile failed, failed to test")
+
+	fileName := file.Name()
+	file.WriteString(TEST_CONFIG_FILE_CONTENT_DUPLICATE_CALLBACK)
+	file.Close()
+
+	defer os.Remove(fileName)
+
+	_, err = LoadConfigFile(fileName)
+	assert.NotNil(t, err, "Parse config file must failed")
 	t.Logf("Parse config file failed [%v]", err)
 }

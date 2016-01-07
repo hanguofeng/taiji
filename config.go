@@ -87,20 +87,29 @@ func LoadConfigFile(configFile string) (*ServiceConfig, error) {
 		c.StatServerPort = 0
 	}
 
+	callbackDedup := make(map[string]bool)
+
 	for i, _ := range c.Callbacks {
 		callback := &c.Callbacks[i]
 
-		if "" == callback.Url {
+		if callback.Url == "" {
 			glog.Errorf("Callback config url should not be empty")
 			return nil, errors.New("Callback url is empty")
 		}
 
-		if 0 == len(callback.Topics) {
+		if callbackDedup[callback.Url] {
+			glog.Errorf("Callback config url is already defined in anthoer callback item")
+			return nil, errors.New("Callback url defined more than once")
+		} else {
+			callbackDedup[callback.Url] = true
+		}
+
+		if len(callback.Topics) == 0 {
 			glog.Errorf("Callback config topics should not be empty")
 			return nil, errors.New("Callback config topics is empty")
 		}
 
-		if 0 == len(callback.Zookeepers) {
+		if len(callback.Zookeepers) == 0 {
 			glog.Errorf("Callback config zookeepers should not be empty")
 			return nil, errors.New("Callback config zookeepers is empty")
 		}
