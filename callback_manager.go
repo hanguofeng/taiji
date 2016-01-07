@@ -142,13 +142,13 @@ callbackManagerFailoverLoop:
 		case <-cm.partitionManagerRunner.WaitForExitChannel():
 			glog.Warning("PartitionManager unexpectedly stopped")
 		}
+	}
 
-		// deregister Consumergroup instance from zookeeper
-		if err := cm.kazooGroupInstance.Deregister(); err != nil {
-			glog.Errorf("Failed deregistering consumer instance [err:%s]", err)
-		} else {
-			glog.Infof("Deregistered consumer instance [instanceId:%s]", cm.kazooGroupInstance.ID)
-		}
+	// deregister Consumergroup instance from zookeeper
+	if err := cm.kazooGroupInstance.Deregister(); err != nil {
+		glog.Errorf("Failed deregistering consumer instance [err:%s]", err)
+	} else {
+		glog.Infof("Deregistered consumer instance [instanceId:%s]", cm.kazooGroupInstance.ID)
 	}
 
 	// sync close offsetManager
@@ -237,14 +237,15 @@ func (cm *CallbackManager) registerConsumergroup() error {
 	}
 
 	// register new kazoo.ConsumerGroup instance
-	if err := cm.kazooGroupInstance.Register(cm.Topics); err != nil {
+	err := cm.kazooGroupInstance.Register(cm.Topics)
+	if err != nil && err != kazoo.ErrInstanceAlreadyRegistered {
 		glog.Errorf("Failed to register consumer instance [err:%s]", err)
-		return err
 	} else {
+		err = nil
 		glog.Infof("Consumer instance registered [instanceId:%s]", cm.kazooGroupInstance.ID)
 	}
 
-	return nil
+	return err
 }
 
 func (cm *CallbackManager) partitionRun(consumers kazoo.ConsumergroupInstanceList) error {
