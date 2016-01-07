@@ -41,7 +41,11 @@ func NewUnboundArbiter() Arbiter {
 }
 
 func (*UnboundArbiter) PreferredTransporterWorkerNum(workerNum int) int {
-	return workerNum
+	if workerNum <= 0 {
+		return 256
+	} else {
+		return workerNum
+	}
 }
 
 func (ua *UnboundArbiter) OffsetChannel() chan<- int64 {

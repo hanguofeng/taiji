@@ -51,7 +51,7 @@ func NewSlidingWindowArbiter() Arbiter {
 }
 
 func (swa *SlidingWindowArbiter) PreferredTransporterWorkerNum(workerNum int) int {
-	if workerNum > swa.windowSize {
+	if workerNum > swa.windowSize || workerNum <= 0 {
 		return swa.windowSize
 	} else {
 		return workerNum
