@@ -34,7 +34,6 @@ func getVersion() string {
 
 func showVersion() {
 	fmt.Println(getVersion())
-	flag.Usage()
 }
 
 func main() {
