@@ -136,10 +136,12 @@ tickerLoop:
 				}
 
 				for partition, offset := range topicOffsets {
-					if err := zos.manager.GetKazooGroup().CommitOffset(topic, partition, offset); err != nil {
-						glog.Warningf("Failed to commit offset [topic:%s][partition:%d][offset:%d]", topic, partition, offset)
-					} else {
-						zos.lastCommittedOffsets[topic][partition] = offset
+					if offset >= 0 {
+						if err := zos.manager.GetKazooGroup().CommitOffset(topic, partition, offset); err != nil {
+							glog.Warningf("Failed to commit offset [topic:%s][partition:%d][offset:%d]", topic, partition, offset)
+						} else {
+							zos.lastCommittedOffsets[topic][partition] = offset
+						}
 					}
 				}
 			}
