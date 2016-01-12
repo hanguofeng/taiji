@@ -5,6 +5,9 @@
 kafka-pusher
 kafkapusher
 
+# Test Coverage File
+.coverage
+
 # Folders
 _obj
 _test

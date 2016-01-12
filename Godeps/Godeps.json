@@ -1,20 +1,20 @@
 {
 	"ImportPath": "github.com/crask/kafka-pusher",
-	"GoVersion": "go1.5",
+	"GoVersion": "go1.5.1",
 	"Deps": [
 		{
 			"ImportPath": "github.com/Shopify/sarama",
-			"Comment": "v1.6.1",
-			"Rev": "35093741160a61deca1a9b08fb5f508c6cece9c8"
+			"Comment": "v1.7.0-22-gc68fea7",
+			"Rev": "c68fea7c711d386b09295428ad51de11f9b2078a"
 		},
 		{
-			"ImportPath": "github.com/crask/kafka/consumergroup",
-			"Rev": "7c36d9407f99a44e907d849b7e40e1def48ee94c"
+			"ImportPath": "github.com/davecgh/go-spew/spew",
+			"Rev": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
 		},
 		{
 			"ImportPath": "github.com/eapache/go-resiliency/breaker",
-			"Comment": "v1.0.0-3-gf341fb4",
-			"Rev": "f341fb4dca45128e4aa86389fa6a675d55fe25e1"
+			"Comment": "v1.0.0-4-gb86b1ec",
+			"Rev": "b86b1ec0dd4209a588dc1285cdd471e73525c0b3"
 		},
 		{
 			"ImportPath": "github.com/eapache/queue",
@@ -30,12 +30,29 @@
 			"Rev": "723cc1e459b8eea2dea4583200fd60757d40097a"
 		},
 		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "1c83b3eabd45b6d76072b66b746c20815fb2872d"
+		},
+		{
+			"ImportPath": "github.com/gorilla/mux",
+			"Rev": "26a6070f849969ba72b72256e9f14cf519751690"
+		},
+		{
 			"ImportPath": "github.com/klauspost/crc32",
-			"Rev": "3e5c38b8b170916b332a5ccb25f921314b98ba01"
+			"Rev": "a3b15ae34567abb20a22992b989cd76f48d09c47"
+		},
+		{
+			"ImportPath": "github.com/pmezard/go-difflib/difflib",
+			"Rev": "e8554b8641db39598be7f6342874b958f12ae1d4"
 		},
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
 			"Rev": "218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f"
+		},
+		{
+			"ImportPath": "github.com/stretchr/testify/assert",
+			"Comment": "v1.0-91-g5b9da39",
+			"Rev": "5b9da39b66e8e994455c2525c4421c8cc00a7f93"
 		},
 		{
 			"ImportPath": "github.com/wvanbergen/kazoo-go",

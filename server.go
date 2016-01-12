@@ -1,105 +1,127 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
-	"time"
-	//"path/filepath"
-	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/golang/glog"
+	"github.com/gorilla/mux"
+	"github.com/samuel/go-zookeeper/zk"
 )
 
-type HTTPServer struct {
-	Addr            string
-	Handler         http.Handler
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	MaxHeaderBytes  int
-	KeepAliveEnable bool
-	RouterFunc      func(map[string]func(http.ResponseWriter, *http.Request))
-	Wg              *sync.WaitGroup
-	Mux             map[string]func(http.ResponseWriter, *http.Request)
-}
-
 type Server struct {
-	managers []*Manager
-	httpsvr  *http.Server
+	// callbackManager
+	callbackManagers      []*CallbackManager
+	callbackManagerRunner *ServiceRunner
+
+	// adminServer
+	adminServer       *http.Server
+	adminServerRouter *mux.Router
+
+	// global http connection pool
+	httpTransport http.RoundTripper
+
+	// config
+	config *ServiceConfig
 }
 
-func NewServer() *Server {
-	return &Server{}
+var serverInstance *Server
+
+func GetServer() *Server {
+	// singleton
+	if serverInstance == nil {
+		serverInstance = &Server{
+			adminServerRouter: mux.NewRouter(),
+		}
+	}
+	return serverInstance
 }
 
-func (this *Server) Init(configFile string) error {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+func (s *Server) Init(configFileName string) error {
+	config, err := LoadConfigFile(configFileName)
 
-	config, err := loadConfig(configFile)
 	if err != nil {
-		glog.Fatalf("[Pusher]Load Config err: %s", err.Error())
+		glog.Fatalf("Load Config err [err:%s]", err.Error())
 		return err
 	}
 
-	// check env var
-	if commitInterval < 0 {
-		glog.Errorf("[Pusher]Invalid commit interval:%d", commitInterval)
-		return errors.New("Invalid param")
-	}
+	s.config = config
 
-	// init sarama logger
-	sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
-
-	// init consumer managers
-	for i, _ := range config.Callbacks {
-		callbackConfig := &config.Callbacks[i]
-		glog.Infoln(callbackConfig)
-		manager := NewManager()
-		if e := manager.Init(callbackConfig); e != nil {
-			glog.Fatalf("[Pusher]Init manager for url[%s] failed, %s", callbackConfig.Url, e.Error())
-			return e
-		}
-		this.managers = append(this.managers, manager)
-	}
-
-	// init http service
-	if statPort > 0 {
-		hdl := NewHandler()
-		hdl.AssignRouter()
-
-		this.httpsvr = &http.Server{
-			Addr:           fmt.Sprintf(":%d", statPort),
-			Handler:        hdl,
+	// init admin server
+	if config.StatServerPort > 0 {
+		s.adminServer = &http.Server{
+			Addr:           fmt.Sprintf(":%d", config.StatServerPort),
+			Handler:        s.adminServerRouter,
 			ReadTimeout:    1 * time.Second,
 			WriteTimeout:   1 * time.Second,
 			MaxHeaderBytes: 1 << 20,
 		}
 	}
 
+	// init sarama logger
+	sarama.Logger = NewLibraryLogger(2, "[Sarama] ")
+
+	// init zookeeper logger
+	zk.DefaultLogger = NewLibraryLogger(2, "[Zookeeper] ")
+
+	// init http transport
+	s.httpTransport = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		Dial: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout: 10 * time.Second,
+		MaxIdleConnsPerHost: config.ConnectionPoolSize,
+	}
+
+	// init callback managers
+	for i, _ := range config.Callbacks {
+		callbackConfig := &config.Callbacks[i]
+		glog.V(1).Infof("Initialize CallbackManager [callbackConfig:%v]", callbackConfig)
+		callbackManager := NewCallbackManager()
+		if err := callbackManager.Init(callbackConfig); err != nil {
+			glog.Fatalf("Init CallbackManager failed [url:%s][err:%s]", callbackConfig.Url, err)
+			return err
+		}
+		s.callbackManagers = append(s.callbackManagers, callbackManager)
+	}
+
+	s.callbackManagerRunner = NewServiceRunner()
+
 	return nil
 }
 
-func (this *Server) Run() error {
+func (s *Server) Validate(configFileName string) error {
+	_, err := LoadConfigFile(configFileName)
+	return err
+}
 
+func (s *Server) Run() error {
 	// run consumer managers
-	for _, mgr := range this.managers {
-		mgr.Work()
+	s.callbackManagerRunner.Prepare()
+	_, err := s.callbackManagerRunner.RunAsync(s.callbackManagers)
+
+	if err != nil {
+		glog.Fatalf("Start CallbackManager failed, Pusher failed to start")
+		return err
 	}
-	glog.V(2).Info("[Pusher]Managers get to work!")
+
+	glog.V(1).Infof("Pusher server get to work")
 
 	// run http service
-	if statPort > 0 {
-		if err := this.httpsvr.ListenAndServe(); err != nil {
-			glog.Fatalln("[Pusher]Start admin http server failed.", err)
-			return err
-		}
-		glog.V(2).Info("[Pusher]Start admin http server success.")
+	if s.adminServer != nil {
+		go func() {
+			if err := s.adminServer.ListenAndServe(); err != nil {
+				glog.Fatalf("Start admin http server failed [err:%s]", err.Error())
+			}
+		}()
 	}
 
 	// register signal callback
@@ -107,22 +129,31 @@ func (this *Server) Run() error {
 	signal.Notify(c, syscall.SIGINT, syscall.SIGUSR1, syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGKILL)
 
 	select {
+	case <-s.callbackManagerRunner.WaitForExitChannel():
+		glog.Fatal("Pusher have one CallbackManager unexpected stopped, stopping server")
 	case <-c:
-		glog.V(2).Info("[Pusher]Catch exit signal")
-		for _, mgr := range this.managers {
-			mgr.Close()
-		}
-		glog.V(2).Info("[Pusher]Exit done")
+		glog.Info("Pusher catch exit signal")
+		s.callbackManagerRunner.Close()
 	}
+
+	glog.Infof("Pusher exit done")
+	// adminServer would not close properly
 
 	return nil
 }
 
-func (this *Server) Find(topic, group string) (*Manager, error) {
-	for _, mgr := range this.managers {
-		if mgr.Topic == topic && mgr.Group == group {
-			return mgr, nil
-		}
-	}
-	return nil, errors.New("Manager not found")
+func (s *Server) GetAdminServerRouter() *mux.Router {
+	return s.adminServerRouter
+}
+
+func (s *Server) GetCallbackManagers() []*CallbackManager {
+	return s.callbackManagers
+}
+
+func (s *Server) GetHttpTransport() http.RoundTripper {
+	return s.httpTransport
+}
+
+func (s *Server) GetConfig() *ServiceConfig {
+	return s.config
 }
