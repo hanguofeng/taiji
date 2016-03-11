@@ -2,12 +2,18 @@
 *.o
 *.a
 *.so
+kafka-pusher
+kafkapusher
+
+# Test Coverage File
+.coverage
 
 # Folders
 _obj
 _test
 log
 logs
+.idea
 
 # Architecture specific extensions/prefixes
 *.[568vq]

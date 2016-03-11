@@ -12,7 +12,11 @@
             ],
             "zookeepers": [
                 "127.0.0.1:2181"
-            ]
+            ],
+            "zk_path": "/kafka",
+            "serializer": "raw",
+            "content_type": "json",
+            "connection_pool_size": 1
         }
     ]
 }
